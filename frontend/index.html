@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Running Coach — Sign In</title>
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+<div class="auth-page">
+  <div class="auth-card">
+    <div class="auth-logo">🏃</div>
+    <h1 class="auth-title">AI Running Coach</h1>
+    <p class="auth-subtitle">Your personal AI-powered training partner</p>
+
+    <div class="tab-switcher">
+      <button class="tab-btn active" id="tab-login"    onclick="showTab('login')">Sign In</button>
+      <button class="tab-btn"        id="tab-register" onclick="showTab('register')">Create Account</button>
+    </div>
+
+    <div id="alert" class="alert alert-error hidden"></div>
+
+    <!-- Login Form -->
+    <form id="login-form" onsubmit="handleLogin(event)">
+      <div class="form-group">
+        <label for="login-email">Email</label>
+        <input class="form-control" type="email" id="login-email" placeholder="you@example.com" required />
+      </div>
+      <div class="form-group">
+        <label for="login-password">Password</label>
+        <input class="form-control" type="password" id="login-password" placeholder="••••••••" required />
+      </div>
+      <button class="btn btn-primary btn-full" type="submit" id="login-btn">Sign In</button>
+    </form>
+
+    <!-- Register Form -->
+    <form id="register-form" class="hidden" onsubmit="handleRegister(event)">
+      <div class="form-group">
+        <label for="reg-name">Full Name</label>
+        <input class="form-control" type="text" id="reg-name" placeholder="Alex Runner" required />
+      </div>
+      <div class="form-group">
+        <label for="reg-email">Email</label>
+        <input class="form-control" type="email" id="reg-email" placeholder="you@example.com" required />
+      </div>
+      <div class="form-group">
+        <label for="reg-password">Password</label>
+        <input class="form-control" type="password" id="reg-password" placeholder="Min. 6 characters" required minlength="6" />
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="reg-weight">Weight (kg) <span style="opacity:.5">optional</span></label>
+          <input class="form-control" type="number" id="reg-weight" placeholder="70" step="0.1" min="30" max="200" />
+        </div>
+        <div class="form-group">
+          <label for="reg-maxhr">Max HR (bpm) <span style="opacity:.5">optional</span></label>
+          <input class="form-control" type="number" id="reg-maxhr" placeholder="185" min="100" max="250" />
+        </div>
+      </div>
+      <button class="btn btn-primary btn-full" type="submit" id="register-btn">Create Account</button>
+    </form>
+  </div>
+</div>
+
+<script src="/js/api.js"></script>
+<script>
+  // Redirect if already logged in
+  if (localStorage.getItem("token")) {
+    window.location.href = "/dashboard.html";
+  }
+
+  function showTab(tab) {
+    const isLogin = tab === "login";
+    document.getElementById("login-form").classList.toggle("hidden", !isLogin);
+    document.getElementById("register-form").classList.toggle("hidden", isLogin);
+    document.getElementById("tab-login").classList.toggle("active", isLogin);
+    document.getElementById("tab-register").classList.toggle("active", !isLogin);
+    document.getElementById("alert").classList.add("hidden");
+  }
+
+  function showError(msg) {
+    const el = document.getElementById("alert");
+    el.textContent = msg;
+    el.classList.remove("hidden");
+  }
+
+  async function handleLogin(e) {
+    e.preventDefault();
+    const btn = document.getElementById("login-btn");
+    btn.disabled = true;
+    btn.textContent = "Signing in…";
+    document.getElementById("alert").classList.add("hidden");
+    try {
+      const data = await api.post("/auth/login", {
+        email: document.getElementById("login-email").value,
+        password: document.getElementById("login-password").value,
+      });
+      localStorage.setItem("token", data.access_token);
+      localStorage.setItem("user", JSON.stringify(data.user));
+      window.location.href = "/dashboard.html";
+    } catch (err) {
+      showError(err.message);
+      btn.disabled = false;
+      btn.textContent = "Sign In";
+    }
+  }
+
+  async function handleRegister(e) {
+    e.preventDefault();
+    const btn = document.getElementById("register-btn");
+    btn.disabled = true;
+    btn.textContent = "Creating account…";
+    document.getElementById("alert").classList.add("hidden");
+    const body = {
+      name:     document.getElementById("reg-name").value,
+      email:    document.getElementById("reg-email").value,
+      password: document.getElementById("reg-password").value,
+    };
+    const weight = document.getElementById("reg-weight").value;
+    const maxhr  = document.getElementById("reg-maxhr").value;
+    if (weight) body.weight_kg = parseFloat(weight);
+    if (maxhr)  body.max_hr    = parseInt(maxhr);
+    try {
+      const data = await api.post("/auth/register", body);
+      localStorage.setItem("token", data.access_token);
+      localStorage.setItem("user", JSON.stringify(data.user));
+      window.location.href = "/dashboard.html";
+    } catch (err) {
+      showError(err.message);
+      btn.disabled = false;
+      btn.textContent = "Create Account";
+    }
+  }
+</script>
+</body>
+</html>

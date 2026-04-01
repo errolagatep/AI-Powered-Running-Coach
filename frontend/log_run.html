@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Log a Run — AI Running Coach</title>
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+
+<nav class="navbar">
+  <a class="navbar-brand" href="/dashboard.html">🏃 RunCoach</a>
+  <ul class="navbar-nav">
+    <li><a href="/dashboard.html">Dashboard</a></li>
+    <li><a href="/log_run.html" class="active">Log Run</a></li>
+    <li><a href="/training_plan.html">Training Plan</a></li>
+    <li><a href="/progress.html">Progress</a></li>
+  </ul>
+  <div class="navbar-actions">
+    <span class="navbar-user" id="navbar-user"></span>
+    <button class="btn btn-secondary" id="logout-btn" style="padding:6px 12px;font-size:13px;">Sign out</button>
+  </div>
+</nav>
+
+<div class="container" style="max-width:680px;">
+  <div class="page-header">
+    <h1>Log a Run</h1>
+    <p>Enter your run details and get instant AI coaching feedback</p>
+  </div>
+
+  <div id="alert" class="alert alert-error hidden"></div>
+
+  <div class="card" id="form-card">
+    <form id="run-form" onsubmit="handleSubmit(event)">
+
+      <div class="form-group">
+        <label for="run-date">Date</label>
+        <input class="form-control" type="date" id="run-date" required />
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="run-distance">Distance (km)</label>
+          <input class="form-control" type="number" id="run-distance" placeholder="5.0" step="0.01" min="0.1" max="200" required />
+        </div>
+        <div class="form-group">
+          <label>Duration</label>
+          <div style="display:flex;gap:8px;">
+            <input class="form-control" type="number" id="run-dur-min" placeholder="Min" min="0" max="999" required style="flex:1;" />
+            <input class="form-control" type="number" id="run-dur-sec" placeholder="Sec" min="0" max="59" value="0" style="width:72px;" />
+          </div>
+          <div class="form-hint">Minutes : Seconds</div>
+        </div>
+      </div>
+
+      <!-- Live pace preview -->
+      <div id="pace-preview" class="pace-preview hidden">
+        <span id="pace-value">—</span> min/km
+        <small>Calculated pace</small>
+      </div>
+
+      <div class="form-row" style="margin-top:16px;">
+        <div class="form-group">
+          <label for="run-hr">Avg Heart Rate (bpm) <span style="opacity:.5">optional</span></label>
+          <input class="form-control" type="number" id="run-hr" placeholder="145" min="60" max="250" />
+        </div>
+        <div class="form-group">
+          <label>Effort Level: <span id="effort-display" style="color:var(--accent);">5</span>/10</label>
+          <div class="slider-container" style="margin-top:8px;">
+            <span style="font-size:12px;color:var(--text-sec);">Easy</span>
+            <input type="range" id="run-effort" min="1" max="10" value="5" oninput="updateEffort(this.value)" />
+            <span style="font-size:12px;color:var(--text-sec);">Max</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="run-notes">Notes <span style="opacity:.5">optional</span></label>
+        <textarea class="form-control" id="run-notes" rows="3" placeholder="How did it feel? Any hills, intervals, weather conditions…" style="resize:vertical;"></textarea>
+      </div>
+
+      <button class="btn btn-primary btn-full" type="submit" id="submit-btn">
+        Save Run & Get AI Feedback
+      </button>
+    </form>
+  </div>
+
+  <!-- Loading state -->
+  <div id="loading-feedback" class="card hidden" style="text-align:center;padding:40px;">
+    <div class="spinner" style="margin:0 auto 16px;width:28px;height:28px;border-width:3px;"></div>
+    <h3 style="font-size:16px;font-weight:600;margin-bottom:8px;">Analyzing your run…</h3>
+    <p style="color:var(--text-sec);font-size:14px;">Your AI coach is reviewing your performance and preparing personalised feedback.</p>
+  </div>
+
+  <!-- AI Feedback result -->
+  <div id="feedback-result" class="hidden">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin:24px 0 12px;">
+      <h2 style="font-size:17px;font-weight:600;">🤖 AI Coach Feedback</h2>
+      <a href="/log_run.html" class="btn btn-secondary">Log Another Run</a>
+    </div>
+    <div id="feedback-text" class="feedback-box"></div>
+    <div style="margin-top:16px;display:flex;gap:12px;">
+      <a href="/dashboard.html" class="btn btn-secondary">Back to Dashboard</a>
+      <a href="/training_plan.html" class="btn btn-primary">Generate Weekly Plan</a>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="/js/api.js"></script>
+<script src="/js/auth.js"></script>
+<script src="/js/log_run.js"></script>
+</body>
+</html>

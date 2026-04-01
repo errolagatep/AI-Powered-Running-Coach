@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Training Plan — AI Running Coach</title>
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+
+<nav class="navbar">
+  <a class="navbar-brand" href="/dashboard.html">🏃 RunCoach</a>
+  <ul class="navbar-nav">
+    <li><a href="/dashboard.html">Dashboard</a></li>
+    <li><a href="/log_run.html">Log Run</a></li>
+    <li><a href="/training_plan.html" class="active">Training Plan</a></li>
+    <li><a href="/progress.html">Progress</a></li>
+  </ul>
+  <div class="navbar-actions">
+    <span class="navbar-user" id="navbar-user"></span>
+    <button class="btn btn-secondary" id="logout-btn" style="padding:6px 12px;font-size:13px;">Sign out</button>
+  </div>
+</nav>
+
+<div class="container">
+  <div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;">
+    <div>
+      <h1>Weekly Training Plan</h1>
+      <p>AI-generated plan based on your training history and goals</p>
+    </div>
+    <button class="btn btn-primary" id="generate-btn" onclick="generatePlan()">✨ Generate New Plan</button>
+  </div>
+
+  <div id="alert" class="alert alert-error hidden"></div>
+
+  <!-- Goal section -->
+  <div class="two-col" style="margin-bottom:24px;">
+    <div class="card">
+      <div class="card-title">🎯 Current Goal</div>
+      <div id="goal-section">
+        <div id="goal-display" class="hidden">
+          <div id="goal-info" style="margin-bottom:12px;color:var(--text-sec);font-size:14px;"></div>
+          <button class="btn btn-danger" style="font-size:12px;padding:6px 12px;" onclick="deleteGoal()">Remove Goal</button>
+        </div>
+        <div id="goal-form">
+          <div class="form-group">
+            <label for="race-type">Race Type</label>
+            <select class="form-control" id="race-type">
+              <option value="">Select race…</option>
+              <option value="5K">5K</option>
+              <option value="10K">10K</option>
+              <option value="Half Marathon">Half Marathon</option>
+              <option value="Marathon">Marathon</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="race-date">Race Date</label>
+            <input class="form-control" type="date" id="race-date" />
+          </div>
+          <div class="form-group">
+            <label for="target-time">Target Time <span style="opacity:.5">optional</span></label>
+            <input class="form-control" type="text" id="target-time" placeholder="e.g. 45:00 or 3:45:00" />
+            <div class="form-hint">Format: MM:SS for 5K/10K, H:MM:SS for half/marathon</div>
+          </div>
+          <button class="btn btn-primary btn-full" onclick="saveGoal()">Set Goal</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">📋 Plan Info</div>
+      <div id="plan-meta" style="color:var(--text-sec);font-size:14px;">
+        No plan generated yet. Click "Generate New Plan" to create your personalized weekly training plan.
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading state -->
+  <div id="plan-loading" class="hidden" style="text-align:center;padding:48px 24px;">
+    <div class="spinner" style="margin:0 auto 16px;width:32px;height:32px;border-width:3px;"></div>
+    <h3 style="font-size:16px;font-weight:600;margin-bottom:8px;">Building your plan…</h3>
+    <p style="color:var(--text-sec);font-size:14px;">Your AI coach is analysing your training history and creating a personalised week.</p>
+  </div>
+
+  <!-- Plan display -->
+  <div id="plan-container" class="hidden">
+    <div id="plan-summary" class="plan-summary-card"></div>
+    <div id="plan-grid" class="plan-grid"></div>
+  </div>
+</div>
+
+<script src="/js/api.js"></script>
+<script src="/js/auth.js"></script>
+<script src="/js/training_plan.js"></script>
+</body>
+</html>
