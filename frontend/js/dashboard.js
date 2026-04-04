@@ -71,6 +71,9 @@ function formatTargetTime(minutes) {
   return h > 0 ? `${h}h ${m}m` : `${m} min`;
 }
 
+// Cache of runs by id — avoids embedding large JSON in inline event attrs
+const _runsCache = {};
+
 function renderRuns(runs) {
   document.getElementById("runs-loading").classList.add("hidden");
 
@@ -78,6 +81,8 @@ function renderRuns(runs) {
     document.getElementById("no-runs").classList.remove("hidden");
     return;
   }
+
+  runs.forEach(r => { _runsCache[r.id] = r; });
 
   const list = document.getElementById("run-list");
   list.classList.remove("hidden");
@@ -98,7 +103,7 @@ function runCard(run) {
     : "";
 
   return `
-    <div class="run-item">
+    <div class="run-item" id="run-card-${run.id}">
       <div class="run-item-header">
         <span class="run-date">${formatDate(run.date)}</span>
         <div class="run-stats">
@@ -120,11 +125,109 @@ function runCard(run) {
           </div>
         </div>
         <span class="effort-badge ${cls}">${effort}</span>
+        <div class="run-actions">
+          <button class="run-action-btn" onclick="openEditModal('${run.id}')">Edit</button>
+          <button class="run-action-btn run-action-danger" onclick="confirmDelete('${run.id}')">Delete</button>
+        </div>
       </div>
       ${run.notes ? `<p style="font-size:13px;color:var(--text-sec);margin-top:8px;">${run.notes}</p>` : ""}
       ${feedbackSection}
     </div>
   `;
+}
+
+
+// ── Delete ────────────────────────────────────────────────────
+async function confirmDelete(runId) {
+  if (!confirm("Delete this run? This cannot be undone.")) return;
+  try {
+    await api.delete(`/runs/${runId}`);
+    document.getElementById(`run-card-${runId}`)?.remove();
+    // Show empty state if no runs left
+    if (!document.querySelector(".run-item")) {
+      document.getElementById("run-list").classList.add("hidden");
+      document.getElementById("no-runs").classList.remove("hidden");
+    }
+  } catch (err) {
+    alert(err.message || "Failed to delete run.");
+  }
+}
+
+// ── Edit modal ────────────────────────────────────────────────
+let _editingRunId = null;
+
+function openEditModal(runId) {
+  _editingRunId = runId;
+  const run = _runsCache[runId];
+  if (!run) return;
+
+  // Populate fields
+  document.getElementById("edit-date").value     = run.date.split("T")[0];
+  document.getElementById("edit-distance").value = run.distance_km;
+  const totalMin = run.duration_min;
+  document.getElementById("edit-dur-min").value  = Math.floor(totalMin);
+  document.getElementById("edit-dur-sec").value  = Math.round((totalMin % 1) * 60);
+  document.getElementById("edit-hr").value       = run.heart_rate_avg || "";
+  document.getElementById("edit-effort").value   = run.effort_level;
+  document.getElementById("edit-effort-display").textContent = run.effort_level;
+  document.getElementById("edit-notes").value    = run.notes || "";
+
+  document.getElementById("modal-alert").classList.add("hidden");
+  document.getElementById("edit-modal").classList.remove("hidden");
+  document.body.style.overflow = "hidden";
+}
+
+function closeEditModal(e) {
+  if (e && e.target !== document.getElementById("edit-modal")) return;
+  document.getElementById("edit-modal").classList.add("hidden");
+  document.body.style.overflow = "";
+  _editingRunId = null;
+}
+
+async function saveEdit() {
+  const alertEl = document.getElementById("modal-alert");
+  alertEl.classList.add("hidden");
+
+  const dist    = parseFloat(document.getElementById("edit-distance").value);
+  const durMin  = parseInt(document.getElementById("edit-dur-min").value) || 0;
+  const durSec  = parseInt(document.getElementById("edit-dur-sec").value) || 0;
+  const totalMin = durMin + durSec / 60;
+
+  if (!dist || dist <= 0) { showModalAlert("Distance must be greater than 0."); return; }
+  if (totalMin <= 0)      { showModalAlert("Duration must be greater than 0."); return; }
+
+  const body = {
+    date:         new Date(document.getElementById("edit-date").value).toISOString(),
+    distance_km:  dist,
+    duration_min: totalMin,
+    effort_level: parseInt(document.getElementById("edit-effort").value),
+    heart_rate_avg: parseInt(document.getElementById("edit-hr").value) || null,
+    notes:        document.getElementById("edit-notes").value.trim() || null,
+  };
+
+  const btn = document.getElementById("edit-save-btn");
+  btn.disabled = true;
+  btn.textContent = "Saving…";
+
+  try {
+    const updated = await api.put(`/runs/${_editingRunId}`, body);
+    // Update cache and replace card in the DOM
+    _runsCache[updated.id] = updated;
+    const card = document.getElementById(`run-card-${_editingRunId}`);
+    if (card) card.outerHTML = runCard(updated);
+    closeEditModal();
+  } catch (err) {
+    showModalAlert(err.message || "Failed to save changes.");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Save changes";
+  }
+}
+
+function showModalAlert(msg) {
+  const el = document.getElementById("modal-alert");
+  el.textContent = msg;
+  el.classList.remove("hidden");
 }
 
 function renderGamification(gam) {

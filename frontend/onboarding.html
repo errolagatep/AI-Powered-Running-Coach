@@ -11,70 +11,158 @@
 <div class="onboarding-wrapper">
   <div class="onboarding-card">
 
-    <!-- Header -->
-    <div class="onboarding-header">
+    <!-- Top bar: back + progress bar + counter -->
+    <div class="ob-topbar" id="ob-topbar">
+      <button class="ob-back-link" id="ob-back-btn" onclick="goBack()" style="visibility:hidden;">← Back</button>
+      <div class="ob-progress-wrap">
+        <div class="ob-progress-bar" id="ob-progress-bar" style="width:0%"></div>
+      </div>
+      <span class="ob-step-counter" id="ob-step-counter">1 / 6</span>
+    </div>
+
+    <div class="ob-hero">
       <div class="auth-logo">🏃</div>
       <h1>Let's build your profile</h1>
       <p>A few quick questions so your AI coach can personalise everything for you.</p>
     </div>
 
-    <!-- Step progress bar -->
-    <div class="step-progress" id="step-progress">
-      <div class="step-dot active" data-step="1"></div>
-      <div class="step-line"></div>
-      <div class="step-dot" data-step="2"></div>
-      <div class="step-line"></div>
-      <div class="step-dot" data-step="3"></div>
-      <div class="step-line"></div>
-      <div class="step-dot" data-step="4"></div>
-      <div class="step-line"></div>
-      <div class="step-dot" data-step="5"></div>
-    </div>
-    <p class="step-label" id="step-label">Step 1 of 5</p>
-
     <div id="alert" class="alert alert-error hidden"></div>
 
-    <!-- ── Step 1: Experience ─────────────────────── -->
+    <!-- ── Step 1: Experience ── -->
     <div class="onboarding-step active" id="step-1">
       <h2 class="step-title">How long have you been running?</h2>
+      <p class="step-hint">Tap one to continue</p>
       <div class="option-grid">
-        <label class="option-card">
+        <label class="option-card" onclick="pickAndAdvance('experience', 'beginner:0', 1)">
           <input type="radio" name="experience" value="beginner:0" />
           <span class="option-icon">🌱</span>
           <span class="option-label">Just starting out</span>
           <span class="option-sub">Less than 6 months</span>
         </label>
-        <label class="option-card">
+        <label class="option-card" onclick="pickAndAdvance('experience', 'beginner:1', 1)">
           <input type="radio" name="experience" value="beginner:1" />
           <span class="option-icon">🚶</span>
           <span class="option-label">Building a habit</span>
           <span class="option-sub">6 months – 2 years</span>
         </label>
-        <label class="option-card">
+        <label class="option-card" onclick="pickAndAdvance('experience', 'intermediate:3', 1)">
           <input type="radio" name="experience" value="intermediate:3" />
           <span class="option-icon">🏃</span>
           <span class="option-label">Regular runner</span>
           <span class="option-sub">2 – 5 years</span>
         </label>
-        <label class="option-card">
+        <label class="option-card" onclick="pickAndAdvance('experience', 'advanced:6', 1)">
           <input type="radio" name="experience" value="advanced:6" />
           <span class="option-icon">⚡</span>
           <span class="option-label">Experienced</span>
           <span class="option-sub">5+ years</span>
         </label>
       </div>
-      <div class="step-actions">
-        <button class="btn btn-primary btn-full" onclick="goNext(1)">Next →</button>
-        <button class="btn btn-secondary btn-full" style="margin-top:8px;" onclick="skipOnboarding()">Skip for now</button>
+      <button class="ob-skip-link" onclick="skipOnboarding()">Skip onboarding</button>
+    </div>
+
+    <!-- ── Step 2: Goal ── -->
+    <div class="onboarding-step" id="step-2">
+      <h2 class="step-title">What's your main running goal?</h2>
+      <p class="step-hint">Tap one to continue</p>
+      <div class="option-grid">
+        <label class="option-card" onclick="pickAndAdvance('goal', 'fitness', 2)">
+          <input type="radio" name="goal" value="fitness" />
+          <span class="option-icon">💪</span>
+          <span class="option-label">General Fitness</span>
+          <span class="option-sub">Stay active & healthy</span>
+        </label>
+        <label class="option-card" onclick="pickAndAdvance('goal', 'speed', 2)">
+          <input type="radio" name="goal" value="speed" />
+          <span class="option-icon">⚡</span>
+          <span class="option-label">Run Faster</span>
+          <span class="option-sub">Improve pace & PRs</span>
+        </label>
+        <label class="option-card" onclick="pickAndAdvance('goal', 'endurance', 2)">
+          <input type="radio" name="goal" value="endurance" />
+          <span class="option-icon">🏔️</span>
+          <span class="option-label">Build Endurance</span>
+          <span class="option-sub">Run longer distances</span>
+        </label>
+        <label class="option-card" onclick="pickAndAdvance('goal', 'race_prep', 2)">
+          <input type="radio" name="goal" value="race_prep" />
+          <span class="option-icon">🏅</span>
+          <span class="option-label">Race Prep</span>
+          <span class="option-sub">Train for a specific event</span>
+        </label>
+        <label class="option-card" onclick="pickAndAdvance('goal', 'weight_loss', 2)">
+          <input type="radio" name="goal" value="weight_loss" />
+          <span class="option-icon">🔥</span>
+          <span class="option-label">Weight Loss</span>
+          <span class="option-sub">Burn calories consistently</span>
+        </label>
       </div>
     </div>
 
-    <!-- ── Step 2: Volume ─────────────────────────── -->
-    <div class="onboarding-step" id="step-2">
-      <h2 class="step-title">What's your current weekly running volume?</h2>
+    <!-- ── Step 3: Race Target ── -->
+    <div class="onboarding-step" id="step-3">
+      <h2 class="step-title" id="race-step-title">Are you targeting a race?</h2>
+      <p class="step-hint">Pick a distance or skip if you're not racing yet</p>
 
-      <div class="form-group" style="margin-bottom:24px;">
-        <label>Runs per week</label>
+      <!-- Race type cards -->
+      <div class="option-grid ob-race-grid" id="race-type-cards">
+        <label class="option-card" onclick="pickRaceType('5K')">
+          <input type="radio" name="race_type" value="5K" />
+          <span class="option-icon">🏁</span>
+          <span class="option-label">5K</span>
+          <span class="option-sub">3.1 miles</span>
+        </label>
+        <label class="option-card" onclick="pickRaceType('10K')">
+          <input type="radio" name="race_type" value="10K" />
+          <span class="option-icon">🏃</span>
+          <span class="option-label">10K</span>
+          <span class="option-sub">6.2 miles</span>
+        </label>
+        <label class="option-card" onclick="pickRaceType('Half Marathon')">
+          <input type="radio" name="race_type" value="Half Marathon" />
+          <span class="option-icon">⭐</span>
+          <span class="option-label">Half Marathon</span>
+          <span class="option-sub">13.1 miles</span>
+        </label>
+        <label class="option-card" onclick="pickRaceType('Marathon')">
+          <input type="radio" name="race_type" value="Marathon" />
+          <span class="option-icon">🏆</span>
+          <span class="option-label">Marathon</span>
+          <span class="option-sub">26.2 miles</span>
+        </label>
+      </div>
+
+      <!-- Race date + target time — revealed after picking a race type -->
+      <div class="ob-race-details hidden" id="race-details">
+        <div class="ob-body-row" style="margin-top:20px;">
+          <div class="form-group">
+            <label class="ob-field-label" for="race-date">Race date</label>
+            <input class="form-control ob-input-lg" type="date" id="race-date" />
+          </div>
+          <div class="form-group">
+            <label class="ob-field-label">Target time <span class="ob-optional">optional</span></label>
+            <div class="ob-time-row">
+              <input class="form-control ob-input-lg" type="number" id="race-target-h"
+                placeholder="h" min="0" max="9" style="width:60px;" />
+              <span class="ob-time-sep">:</span>
+              <input class="form-control ob-input-lg" type="number" id="race-target-m"
+                placeholder="mm" min="0" max="59" style="width:64px;" />
+            </div>
+          </div>
+        </div>
+        <button class="btn btn-primary ob-continue-btn" onclick="continueStep(3)">Continue</button>
+      </div>
+
+      <!-- No race option -->
+      <button class="ob-skip-link" style="margin-top:20px;" onclick="skipRace()">No race planned right now</button>
+    </div>
+
+    <!-- ── Step 4: Volume ── -->
+    <div class="onboarding-step" id="step-4">
+      <h2 class="step-title">How much are you running now?</h2>
+
+      <div class="form-group">
+        <label class="ob-field-label">Runs per week</label>
         <div class="day-toggles">
           <button type="button" class="day-toggle" data-val="0" onclick="selectWeeklyRuns(0)">0</button>
           <button type="button" class="day-toggle" data-val="1" onclick="selectWeeklyRuns(1)">1</button>
@@ -86,71 +174,35 @@
         </div>
       </div>
 
-      <div class="form-group">
-        <label for="weekly-km">Estimated km per week <span style="opacity:.5">optional</span></label>
-        <input class="form-control" type="number" id="weekly-km" placeholder="e.g. 20" min="0" max="300" step="1" />
+      <div class="form-group" style="margin-top:20px;">
+        <label class="ob-field-label" for="weekly-km">Approx. km per week <span class="ob-optional">optional</span></label>
+        <input class="form-control ob-input-lg" type="number" id="weekly-km"
+          placeholder="e.g. 20" min="0" max="300" step="1" />
       </div>
 
-      <div class="step-actions">
-        <div style="display:flex;gap:8px;">
-          <button class="btn btn-secondary" style="flex:1" onclick="goStep(1)">← Back</button>
-          <button class="btn btn-primary" style="flex:2" onclick="goNext(2)">Next →</button>
-        </div>
-      </div>
+      <button class="btn btn-primary ob-continue-btn" onclick="continueStep(4)">Continue</button>
     </div>
 
-    <!-- ── Step 3: Goal + Load ────────────────────── -->
-    <div class="onboarding-step" id="step-3">
-      <h2 class="step-title">What's your main running goal?</h2>
-      <div class="option-grid">
-        <label class="option-card">
-          <input type="radio" name="goal" value="fitness" />
-          <span class="option-icon">💪</span>
-          <span class="option-label">General Fitness</span>
-          <span class="option-sub">Stay active & healthy</span>
-        </label>
-        <label class="option-card">
-          <input type="radio" name="goal" value="speed" />
-          <span class="option-icon">⚡</span>
-          <span class="option-label">Run Faster</span>
-          <span class="option-sub">Improve pace & PRs</span>
-        </label>
-        <label class="option-card">
-          <input type="radio" name="goal" value="endurance" />
-          <span class="option-icon">🏔️</span>
-          <span class="option-label">Build Endurance</span>
-          <span class="option-sub">Run longer distances</span>
-        </label>
-        <label class="option-card">
-          <input type="radio" name="goal" value="race_prep" />
-          <span class="option-icon">🏅</span>
-          <span class="option-label">Race Prep</span>
-          <span class="option-sub">Train for a specific event</span>
-        </label>
-        <label class="option-card">
-          <input type="radio" name="goal" value="weight_loss" />
-          <span class="option-icon">🔥</span>
-          <span class="option-label">Weight Loss</span>
-          <span class="option-sub">Burn calories consistently</span>
-        </label>
-      </div>
+    <!-- ── Step 5: Load + Schedule ── -->
+    <div class="onboarding-step" id="step-5">
+      <h2 class="step-title">Let's set your schedule</h2>
 
-      <div class="form-group" style="margin-top:24px;">
-        <label>How much training load can you handle?</label>
-        <div class="option-grid" style="grid-template-columns:repeat(3,1fr);">
-          <label class="option-card">
+      <div class="form-group">
+        <label class="ob-field-label">Training load you can handle</label>
+        <div class="option-grid ob-load-grid">
+          <label class="option-card" onclick="pickLoad('low')">
             <input type="radio" name="load" value="low" />
             <span class="option-icon">😌</span>
             <span class="option-label">Easy</span>
             <span class="option-sub">Light & consistent</span>
           </label>
-          <label class="option-card">
+          <label class="option-card" onclick="pickLoad('moderate')">
             <input type="radio" name="load" value="moderate" />
             <span class="option-icon">💼</span>
             <span class="option-label">Moderate</span>
             <span class="option-sub">Balanced effort</span>
           </label>
-          <label class="option-card">
+          <label class="option-card" onclick="pickLoad('high')">
             <input type="radio" name="load" value="high" />
             <span class="option-icon">🔥</span>
             <span class="option-label">High</span>
@@ -159,20 +211,8 @@
         </div>
       </div>
 
-      <div class="step-actions">
-        <div style="display:flex;gap:8px;">
-          <button class="btn btn-secondary" style="flex:1" onclick="goStep(2)">← Back</button>
-          <button class="btn btn-primary" style="flex:2" onclick="goNext(3)">Next →</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- ── Step 4: Schedule ───────────────────────── -->
-    <div class="onboarding-step" id="step-4">
-      <h2 class="step-title">How do you prefer to run?</h2>
-
-      <div class="form-group">
-        <label>Days available per week</label>
+      <div class="form-group" style="margin-top:24px;">
+        <label class="ob-field-label">Days available to run each week</label>
         <div class="day-toggles">
           <button type="button" class="day-toggle" data-val="1" onclick="selectDays(1)">1</button>
           <button type="button" class="day-toggle" data-val="2" onclick="selectDays(2)">2</button>
@@ -185,101 +225,103 @@
       </div>
 
       <div class="form-group" style="margin-top:24px;">
-        <label>Preferred run distance</label>
-        <div class="option-grid" style="grid-template-columns:repeat(2,1fr);">
-          <label class="option-card">
+        <label class="ob-field-label">Preferred run distance</label>
+        <div class="option-grid ob-dist-grid">
+          <label class="option-card" onclick="pickDistance('short')">
             <input type="radio" name="distance" value="short" />
             <span class="option-icon">🏙️</span>
-            <span class="option-label">Short</span>
-            <span class="option-sub">3 – 5 km</span>
+            <span class="option-label">Short <span class="option-sub">3–5 km</span></span>
           </label>
-          <label class="option-card">
+          <label class="option-card" onclick="pickDistance('medium')">
             <input type="radio" name="distance" value="medium" />
             <span class="option-icon">🛤️</span>
-            <span class="option-label">Medium</span>
-            <span class="option-sub">5 – 10 km</span>
+            <span class="option-label">Medium <span class="option-sub">5–10 km</span></span>
           </label>
-          <label class="option-card">
+          <label class="option-card" onclick="pickDistance('long')">
             <input type="radio" name="distance" value="long" />
             <span class="option-icon">🏞️</span>
-            <span class="option-label">Long</span>
-            <span class="option-sub">10 km+</span>
+            <span class="option-label">Long <span class="option-sub">10 km+</span></span>
           </label>
-          <label class="option-card">
+          <label class="option-card" onclick="pickDistance('mixed')">
             <input type="radio" name="distance" value="mixed" />
             <span class="option-icon">🔀</span>
-            <span class="option-label">Mixed</span>
-            <span class="option-sub">Variety</span>
+            <span class="option-label">Mixed <span class="option-sub">Variety</span></span>
           </label>
         </div>
       </div>
 
-      <div class="step-actions">
-        <div style="display:flex;gap:8px;">
-          <button class="btn btn-secondary" style="flex:1" onclick="goStep(3)">← Back</button>
-          <button class="btn btn-primary" style="flex:2" onclick="goNext(4)">Next →</button>
-        </div>
-      </div>
+      <button class="btn btn-primary ob-continue-btn" onclick="continueStep(5)">Continue</button>
     </div>
 
-    <!-- ── Step 5: Injuries ───────────────────────── -->
-    <div class="onboarding-step" id="step-5">
-      <h2 class="step-title">Any injury history to be aware of?</h2>
-      <p style="color:var(--text-sec);font-size:14px;margin-bottom:20px;">
-        Your coach will factor this in when designing your plan. Leave blank if none.
-      </p>
-      <div class="form-group">
-        <label for="injury-history">Injury notes <span style="opacity:.5">optional</span></label>
-        <textarea class="form-control" id="injury-history" rows="3"
-          placeholder="e.g. Left knee pain, shin splints last year…" style="resize:vertical;"></textarea>
-      </div>
-
-      <div class="step-actions">
-        <div style="display:flex;gap:8px;">
-          <button class="btn btn-secondary" style="flex:1" onclick="goStep(4)">← Back</button>
-          <button class="btn btn-primary" style="flex:2" id="analyze-btn" onclick="submitAssessment()">
-            Analyze My Profile 🤖
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- ── Step 6: Claude follow-up (conditional) ── -->
+    <!-- ── Step 6: Body + Injuries ── -->
     <div class="onboarding-step" id="step-6">
-      <h2 class="step-title">One quick question from your coach</h2>
+      <h2 class="step-title">A couple of optional details</h2>
+      <p class="step-hint">Helps fine-tune intensity. Skip anything you don't know.</p>
+
+      <div class="ob-body-row">
+        <div class="form-group">
+          <label class="ob-field-label" for="body-weight">Weight <span class="ob-optional">kg</span></label>
+          <input class="form-control ob-input-lg" type="number" id="body-weight"
+            placeholder="e.g. 70" step="0.1" min="30" max="300" />
+        </div>
+        <div class="form-group">
+          <label class="ob-field-label" for="body-maxhr">Max Heart Rate <span class="ob-optional">bpm</span></label>
+          <input class="form-control ob-input-lg" type="number" id="body-maxhr"
+            placeholder="e.g. 185" min="100" max="250" />
+        </div>
+      </div>
+
+      <div class="form-group" style="margin-top:20px;">
+        <label class="ob-field-label" for="injury-history">Past injuries <span class="ob-optional">optional</span></label>
+        <textarea class="form-control ob-textarea" id="injury-history" rows="3"
+          placeholder="e.g. Left knee pain, shin splints last year…"></textarea>
+      </div>
+
+      <button class="btn btn-primary ob-continue-btn" id="analyze-btn" onclick="submitAssessment()">
+        Build My Profile 🤖
+      </button>
+    </div>
+
+    <!-- ── Claude follow-up (conditional, not numbered) ── -->
+    <div class="onboarding-step" id="step-followup">
+      <h2 class="step-title">One quick question</h2>
       <div class="coach-bubble">
         <span class="coach-avatar">🤖</span>
         <p id="followup-question" class="coach-message"></p>
       </div>
-      <div class="form-group" style="margin-top:20px;">
-        <label for="followup-answer">Your answer</label>
-        <textarea class="form-control" id="followup-answer" rows="3" placeholder="Type your answer…" style="resize:vertical;"></textarea>
-      </div>
-      <div class="step-actions">
-        <button class="btn btn-primary btn-full" onclick="submitFollowup()">Continue →</button>
-        <button class="btn btn-secondary btn-full" style="margin-top:8px;" onclick="showFinalScreen()">Skip this question</button>
-      </div>
+      <textarea class="form-control ob-textarea" id="followup-answer" rows="3"
+        placeholder="Type your answer…" style="margin-top:20px;"></textarea>
+      <button class="btn btn-primary ob-continue-btn" onclick="submitFollowup()">Continue</button>
+      <button class="ob-skip-link" onclick="showFinalScreen()">Skip this question</button>
     </div>
 
-    <!-- ── Final screen ───────────────────────────── -->
+    <!-- ── Final screen ── -->
     <div class="onboarding-step" id="step-final">
-      <div style="text-align:center;padding:16px 0;">
-        <div style="font-size:64px;margin-bottom:16px;">🎉</div>
-        <h2 style="font-size:22px;margin-bottom:8px;">You're all set!</h2>
-        <p style="color:var(--text-sec);margin-bottom:32px;">
-          Your AI coach knows your profile. Ready to start training?
-        </p>
-        <button class="btn btn-primary btn-full" id="gen-plan-btn" onclick="generatePlan()">
-          Generate My First Training Plan
+      <div class="ob-final">
+        <div class="ob-final-emoji">🎉</div>
+        <h2 id="final-title">You're all set!</h2>
+        <p id="final-subtitle">Your AI coach knows your profile and is ready to build a plan around you.</p>
+        <button class="btn btn-primary ob-continue-btn" id="gen-plan-btn" onclick="generatePlan()">
+          Generate My Training Plan
         </button>
-        <a href="/dashboard.html" class="btn btn-secondary btn-full" style="margin-top:10px;display:block;">
-          Go to Dashboard
+        <a href="/dashboard.html" class="ob-skip-link" style="margin-top:12px;">
+          Go to Dashboard instead
         </a>
       </div>
     </div>
 
-  </div><!-- /onboarding-card -->
-</div><!-- /onboarding-wrapper -->
+  </div>
+</div>
+
+<!-- ── Generation overlay ── -->
+<div class="gen-overlay hidden" id="gen-overlay">
+  <div class="gen-overlay-card">
+    <span class="gen-runner">🏃</span>
+    <h2 id="gen-overlay-title">Building your profile…</h2>
+    <p id="gen-overlay-sub">Personalising your coaching experience with AI</p>
+    <div class="gen-steps" id="gen-steps"></div>
+  </div>
+</div>
 
 <script src="/js/api.js"></script>
 <script src="/js/auth.js"></script>

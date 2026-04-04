@@ -94,6 +94,13 @@ function showFeedback(run) {
   } else {
     feedbackEl.innerHTML = "<p>Feedback unavailable. Please check your API key.</p>";
   }
+
+  if (run.plan_adjusted) {
+    const banner = document.getElementById("plan-adjusted-banner");
+    document.getElementById("pab-reason").textContent = run.plan_adjustment_reason || "Your coach adjusted the plan to better match your current fitness.";
+    banner.classList.remove("hidden");
+    banner.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
 }
 
 function renderMarkdown(text) {

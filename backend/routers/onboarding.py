@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from supabase import Client
+from datetime import datetime
 from ..database import get_supabase
 from ..schemas import AssessmentCreate, AssessmentResponse
 from ..auth import get_current_user
@@ -30,6 +31,31 @@ def submit_assessment(
         "ai_followup_q": followup_q,
         "ai_followup_a": data.ai_followup_a,
     }
+
+    # Persist weight / max_hr to the users table if provided
+    user_update = {}
+    if data.weight_kg is not None:
+        user_update["weight_kg"] = data.weight_kg
+    if data.max_hr is not None:
+        user_update["max_hr"] = data.max_hr
+    if user_update:
+        supabase.table("users").update(user_update).eq("id", current_user["id"]).execute()
+
+    # Save race goal to goals table if provided
+    if data.race_type and data.race_date:
+        try:
+            race_date_dt = datetime.fromisoformat(data.race_date)
+            goal_payload = {
+                "user_id": current_user["id"],
+                "race_type": data.race_type,
+                "race_date": race_date_dt.isoformat(),
+                "target_time_min": data.target_time_min,
+            }
+            # Upsert: remove old goals for this user first, then insert
+            supabase.table("goals").delete().eq("user_id", current_user["id"]).execute()
+            supabase.table("goals").insert(goal_payload).execute()
+        except Exception:
+            pass  # Race goal is optional; don't fail the whole submission
 
     # Upsert — user may redo onboarding
     existing = (

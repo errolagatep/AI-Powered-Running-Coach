@@ -87,6 +87,71 @@ def _assessment_context(assessment: dict) -> str:
     )
 
 
+def should_adjust_plan(
+    run: dict,
+    recent_runs: list,
+    assessment: Optional[dict],
+    feedback: str,
+) -> dict:
+    """Ask Claude whether the training plan needs adjusting based on this run.
+
+    Returns {"adjust": bool, "reason": str}.
+    """
+    recent_summary = ""
+    if recent_runs:
+        recent_summary = "\nRecent runs (last 5):\n" + "\n".join(
+            _run_to_context_line(r) for r in recent_runs[:5]
+        )
+
+    assessment_note = ""
+    if assessment:
+        assessment_note = (
+            f"\nRunner profile — Goal: {assessment.get('primary_goal')}, "
+            f"Load: {assessment.get('load_capacity')}, "
+            f"Experience: {assessment.get('experience_level')}"
+        )
+
+    prompt = f"""A runner just logged a run and received the coaching feedback below.
+Decide whether their TRAINING PLAN should be restructured because of this run.
+
+Run: {run['distance_km']:.1f} km, pace {_fmt_pace(run['pace_per_km'])}/km, effort {run['effort_level']}/10{recent_summary}{assessment_note}
+
+Coaching feedback summary:
+{feedback[:800]}
+
+Adjust the plan ONLY if there is a clear, specific reason — for example:
+- Consistent overexertion or underperformance across multiple recent runs
+- A new or worsening injury signal
+- A significant unexpected fitness leap warranting progression
+- Pace or effort drifting far outside the plan's intent for several sessions
+
+Do NOT adjust for a single normal run, minor variations, or if the athlete is following the plan well.
+
+Reply with JSON only (no explanation outside the JSON):
+{{"adjust": true or false, "reason": "one sentence reason — empty string if adjust is false"}}"""
+
+    response = get_client().messages.create(
+        model="claude-opus-4-6",
+        max_tokens=120,
+        system="You are a conservative running coach assistant. Only recommend plan changes when clearly justified.",
+        messages=[{"role": "user", "content": prompt}],
+    )
+    for block in response.content:
+        if block.type == "text":
+            text = block.text.strip()
+            if text.startswith("```"):
+                text = text.split("```")[1]
+                if text.startswith("json"):
+                    text = text[4:]
+                text = text.strip()
+            try:
+                data = json.loads(text)
+                return {"adjust": bool(data.get("adjust")), "reason": str(data.get("reason", ""))}
+            except (json.JSONDecodeError, KeyError):
+                break
+    return {"adjust": False, "reason": ""}
+
+
 def generate_run_feedback(
     run: dict,
     recent_runs: list,
@@ -105,8 +170,8 @@ def generate_run_feedback(
 - Notes: {run.get("notes") or "None"}"""]
 
     if recent_runs:
-        history = "\n## Recent Training History (last 10 runs)\n"
-        history += "\n".join(_run_to_context_line(r) for r in recent_runs[:10])
+        history = "\n## Recent runs (last 5)\n"
+        history += "\n".join(_run_to_context_line(r) for r in recent_runs[:5])
         parts.append(history)
 
     if goal:
@@ -137,17 +202,20 @@ def generate_run_feedback(
     context = "\n".join(parts)
     prompt = (
         f"{context}\n\n"
-        "Please provide coaching feedback structured with these sections:\n\n"
-        "## Performance Assessment\n"
-        "## What Worked Well\n"
-        "## Next Session Suggestion\n"
-        "## Recovery Advice"
+        "Write coaching feedback in 3 short paragraphs — no headings, no bullet points:\n\n"
+        "Paragraph 1 — Performance: How did this run go compared to recent form? "
+        "Comment on pace, effort level, and whether it matched the athlete's current fitness.\n\n"
+        "Paragraph 2 — Observation: Call out one specific strength or one concern from this run "
+        "(e.g. solid negative split, HR too high for easy pace, strong finish).\n\n"
+        "Paragraph 3 — Recovery: Give concrete recovery advice for the next 24 hours "
+        "based on the effort (e.g. easy walk, foam rolling, protein intake, sleep).\n\n"
+        "Do NOT suggest the next workout or training session — that is handled separately. "
+        "Be direct and specific. Target 110–140 words total."
     )
 
     response = get_client().messages.create(
         model="claude-opus-4-6",
-        max_tokens=1200,
-        thinking={"type": "adaptive"},
+        max_tokens=500,
         system=COACH_SYSTEM_PROMPT,
         messages=[{"role": "user", "content": prompt}],
     )
@@ -163,6 +231,7 @@ def generate_weekly_plan(
     goal: Optional[dict] = None,
     user_name: str = "Athlete",
     assessment: Optional[dict] = None,
+    coach_notes: Optional[str] = None,
 ) -> dict:
     """Generate a 7-day structured training plan as JSON."""
     total_km = sum(r["distance_km"] for r in recent_runs[-14:]) if recent_runs else 0
@@ -194,6 +263,9 @@ def generate_weekly_plan(
         context += f"\nGoal race: {goal['race_type']} in {weeks_until} weeks"
         if goal.get("target_time_min"):
             context += f" (target: {goal['target_time_min']:.0f} min)"
+
+    if coach_notes:
+        context += f"\n\n## Coach Notes (incorporate these into the plan)\n{coach_notes}\n"
 
     plan_schema = {
         "type": "object",
@@ -227,28 +299,36 @@ def generate_weekly_plan(
         "additionalProperties": False,
     }
 
+    schema_hint = json.dumps(plan_schema, indent=2)
+
     response = get_client().messages.create(
         model="claude-opus-4-6",
-        max_tokens=2000,
-        thinking={"type": "adaptive"},
+        max_tokens=2500,
         system=COACH_SYSTEM_PROMPT,
-        output_config={"format": {"type": "json_schema", "schema": plan_schema}},
         messages=[{
             "role": "user",
             "content": (
                 f"{context}\n\n"
-                "Create a 7-day training plan (Monday–Sunday). Include all 7 days including rest days. "
-                "Workout types: Easy Run, Tempo Run, Interval Training, Long Run, Cross Training, Rest, Active Recovery. "
-                "For Rest and Active Recovery days set distance_km and duration_min to 0. "
-                "Intensity values: Easy, Moderate, Hard, Rest."
+                "Create a 7-day training plan (Monday–Sunday). Include all 7 days including rest days.\n"
+                "Workout types: Easy Run, Tempo Run, Interval Training, Long Run, Cross Training, Rest, Active Recovery.\n"
+                "For Rest and Active Recovery days set distance_km and duration_min to 0.\n"
+                "Intensity values: Easy, Moderate, Hard, Rest.\n\n"
+                f"Respond with ONLY valid JSON matching this schema (no markdown, no explanation):\n{schema_hint}"
             ),
         }],
     )
 
     for block in response.content:
         if block.type == "text":
+            text = block.text.strip()
+            # Strip markdown code fences if present
+            if text.startswith("```"):
+                text = text.split("```")[1]
+                if text.startswith("json"):
+                    text = text[4:]
+                text = text.strip()
             try:
-                return json.loads(block.text)
+                return json.loads(text)
             except json.JSONDecodeError:
                 break
 

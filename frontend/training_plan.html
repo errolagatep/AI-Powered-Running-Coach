@@ -15,6 +15,7 @@
     <li><a href="/log_run.html">Log Run</a></li>
     <li><a href="/training_plan.html" class="active">Training Plan</a></li>
     <li><a href="/progress.html">Progress</a></li>
+    <li><a href="/achievements.html">Achievements</a></li>
   </ul>
   <div class="navbar-actions">
     <span class="navbar-user" id="navbar-user"></span>
@@ -23,12 +24,15 @@
 </nav>
 
 <div class="container">
-  <div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;">
+  <div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;">
     <div>
       <h1>Weekly Training Plan</h1>
       <p>AI-generated plan based on your training history and goals</p>
     </div>
-    <button class="btn btn-primary" id="generate-btn" onclick="generatePlan()">✨ Generate New Plan</button>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+      <button class="btn btn-secondary" id="recalibrate-btn" onclick="openRecalibrateModal()">🔄 Recalibrate from Efforts</button>
+      <button class="btn btn-primary" id="generate-btn" onclick="generatePlan()">✨ Generate New Plan</button>
+    </div>
   </div>
 
   <div id="alert" class="alert alert-error hidden"></div>
@@ -86,6 +90,28 @@
   <div id="plan-container" class="hidden">
     <div id="plan-summary" class="plan-summary-card"></div>
     <div id="plan-grid" class="plan-grid"></div>
+  </div>
+</div>
+
+<!-- ── Recalibrate confirmation modal ── -->
+<div id="recalibrate-modal" class="modal-backdrop hidden" onclick="closeRecalibrateModal(event)">
+  <div class="modal-card" style="max-width:440px;" role="dialog" aria-modal="true">
+    <div class="modal-header">
+      <h3 class="modal-title">🔄 Recalibrate Training Plan</h3>
+      <button class="modal-close" onclick="closeRecalibrateModal()">&times;</button>
+    </div>
+    <div style="padding:0 24px 8px;">
+      <p style="font-size:14px;color:var(--text);line-height:1.7;margin-bottom:12px;">
+        Your AI coach will review the feedback from your recent logged runs and rebuild this week's plan around your <strong>actual efforts, paces, and recovery patterns</strong> — not just your profile.
+      </p>
+      <p style="font-size:13px;color:var(--text-sec);line-height:1.6;">
+        This will replace your current plan. Any sessions you haven't completed yet will be restructured to better match where you are right now.
+      </p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeRecalibrateModal()">Cancel</button>
+      <button class="btn btn-primary" id="recalibrate-confirm-btn" onclick="recalibratePlan()">Recalibrate plan</button>
+    </div>
   </div>
 </div>
 

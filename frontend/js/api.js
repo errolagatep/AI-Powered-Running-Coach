@@ -36,5 +36,6 @@ async function apiRequest(method, path, body = null) {
 const api = {
   get:    (path)        => apiRequest("GET",    path),
   post:   (path, body)  => apiRequest("POST",   path, body),
+  put:    (path, body)  => apiRequest("PUT",    path, body),
   delete: (path)        => apiRequest("DELETE", path),
 };

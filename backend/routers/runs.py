@@ -1,12 +1,13 @@
 import math
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from supabase import Client
 from typing import List
 from ..database import get_supabase
-from ..schemas import RunCreate, RunResponse
+from ..schemas import RunCreate, RunUpdate, RunResponse
 from ..auth import get_current_user
-from ..coach import generate_run_feedback
+import json
+from ..coach import generate_run_feedback, should_adjust_plan, generate_weekly_plan
 
 router = APIRouter(prefix="/api/runs", tags=["runs"])
 
@@ -136,11 +137,11 @@ def _process_gamification(user_id: str, run: dict, supabase: Client) -> list:
     total_runs = len(all_runs)
     total_km = sum(r["distance_km"] for r in all_runs)
 
-    # Weekly km
+    # Weekly km — use timedelta to avoid crossing month boundaries
     today_dt = datetime.now(timezone.utc)
-    week_start = today_dt.replace(
+    week_start = (today_dt - timedelta(days=today_dt.weekday())).replace(
         hour=0, minute=0, second=0, microsecond=0
-    ).replace(day=today_dt.day - today_dt.weekday())
+    )
     weekly_result = (
         supabase.table("run_logs")
         .select("distance_km,date")
@@ -234,7 +235,45 @@ def log_run(
 
     new_achievements = _process_gamification(current_user["id"], saved_run, supabase)
 
-    response_data = {**saved_run, "new_achievements": new_achievements}
+    # Ask coach whether the training plan needs restructuring
+    plan_adjusted = False
+    plan_adjustment_reason = ""
+    try:
+        adjustment = should_adjust_plan(
+            run=saved_run,
+            recent_runs=recent.data,
+            assessment=assessment,
+            feedback=feedback,
+        )
+        if adjustment["adjust"]:
+            goal = _latest_goal(current_user["id"], supabase)
+            new_plan = generate_weekly_plan(
+                recent_runs=recent.data,
+                goal=goal,
+                user_name=current_user["name"],
+                assessment=assessment,
+                coach_notes=(
+                    f"Reason for plan update: {adjustment['reason']}\n\n"
+                    f"Latest coaching feedback (use specific distances/paces mentioned here):\n{feedback[:1200]}"
+                ),
+            )
+            supabase.table("training_plans").insert({
+                "user_id": current_user["id"],
+                "week_start": (datetime.utcnow() + timedelta(days=(7 - datetime.utcnow().weekday()) % 7 or 7))
+                              .replace(hour=0, minute=0, second=0, microsecond=0).isoformat(),
+                "plan_json": json.dumps(new_plan),
+            }).execute()
+            plan_adjusted = True
+            plan_adjustment_reason = adjustment["reason"]
+    except Exception:
+        pass  # Plan adjustment is non-critical — never fail a run log because of it
+
+    response_data = {
+        **saved_run,
+        "new_achievements": new_achievements,
+        "plan_adjusted": plan_adjusted,
+        "plan_adjustment_reason": plan_adjustment_reason,
+    }
     return RunResponse.model_validate(response_data)
 
 
@@ -313,3 +352,120 @@ def regenerate_feedback(
 
     updated = supabase.table("run_logs").update({"ai_feedback": feedback}).eq("id", run_id).execute()
     return RunResponse.model_validate(updated.data[0])
+
+
+@router.put("/{run_id}", response_model=RunResponse)
+def update_run(
+    run_id: str,
+    data: RunUpdate,
+    current_user: dict = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase),
+):
+    existing = (
+        supabase.table("run_logs")
+        .select("*")
+        .eq("id", run_id)
+        .eq("user_id", current_user["id"])
+        .execute()
+    )
+    if not existing.data:
+        raise HTTPException(status_code=404, detail="Run not found")
+
+    patch = {k: v for k, v in data.model_dump().items() if v is not None}
+    if not patch:
+        return RunResponse.model_validate(existing.data[0])
+
+    if "date" in patch:
+        patch["date"] = patch["date"].isoformat()
+
+    # Recalculate pace if distance or duration changed
+    current = existing.data[0]
+    new_distance = patch.get("distance_km", current["distance_km"])
+    new_duration = patch.get("duration_min", current["duration_min"])
+    patch["pace_per_km"] = new_duration / new_distance
+
+    if "effort_level" in patch and not (1 <= patch["effort_level"] <= 10):
+        raise HTTPException(status_code=400, detail="Effort level must be between 1 and 10")
+
+    result = supabase.table("run_logs").update(patch).eq("id", run_id).execute()
+    return RunResponse.model_validate(result.data[0])
+
+
+def _recalculate_gamification(user_id: str, supabase: Client):
+    """Recompute XP, level, and streak from scratch. Called after a run is deleted."""
+    all_runs = (
+        supabase.table("run_logs")
+        .select("distance_km,effort_level,pace_per_km,date")
+        .eq("user_id", user_id)
+        .order("date", desc=True)
+        .execute()
+        .data
+    )
+
+    if not all_runs:
+        supabase.table("user_gamification").upsert({
+            "user_id": user_id,
+            "total_xp": 0,
+            "level": 1,
+            "current_streak": 0,
+            "longest_streak": 0,
+            "last_run_date": None,
+        }, on_conflict="user_id").execute()
+        return
+
+    total_xp = sum(int(r["distance_km"] * 10) + r["effort_level"] * 5 for r in all_runs)
+    new_level = level_from_xp(total_xp)
+
+    # Unique run dates sorted descending
+    dates = sorted(set(str(r["date"])[:10] for r in all_runs), reverse=True)
+    last_run_date = dates[0]
+
+    # Current streak: only count if most recent run is today or yesterday
+    today_d = date.today()
+    most_recent = date.fromisoformat(dates[0])
+    current_streak = 0
+    if (today_d - most_recent).days <= 1:
+        current_streak = 1
+        for i in range(1, len(dates)):
+            if (date.fromisoformat(dates[i - 1]) - date.fromisoformat(dates[i])).days == 1:
+                current_streak += 1
+            else:
+                break
+
+    # Longest streak (full scan)
+    longest_streak = current_streak
+    running = 1
+    for i in range(1, len(dates)):
+        if (date.fromisoformat(dates[i - 1]) - date.fromisoformat(dates[i])).days == 1:
+            running += 1
+            longest_streak = max(longest_streak, running)
+        else:
+            running = 1
+
+    supabase.table("user_gamification").upsert({
+        "user_id": user_id,
+        "total_xp": total_xp,
+        "level": new_level,
+        "current_streak": current_streak,
+        "longest_streak": longest_streak,
+        "last_run_date": last_run_date,
+    }, on_conflict="user_id").execute()
+
+
+@router.delete("/{run_id}", status_code=204)
+def delete_run(
+    run_id: str,
+    current_user: dict = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase),
+):
+    existing = (
+        supabase.table("run_logs")
+        .select("id")
+        .eq("id", run_id)
+        .eq("user_id", current_user["id"])
+        .execute()
+    )
+    if not existing.data:
+        raise HTTPException(status_code=404, detail="Run not found")
+    supabase.table("run_logs").delete().eq("id", run_id).execute()
+    _recalculate_gamification(current_user["id"], supabase)

@@ -47,6 +47,15 @@ class RunCreate(BaseModel):
     notes: Optional[str] = None
 
 
+class RunUpdate(BaseModel):
+    date: Optional[datetime] = None
+    distance_km: Optional[float] = None
+    duration_min: Optional[float] = None
+    heart_rate_avg: Optional[int] = None
+    effort_level: Optional[int] = None
+    notes: Optional[str] = None
+
+
 class RunResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -62,6 +71,8 @@ class RunResponse(BaseModel):
     ai_feedback: Optional[str] = None
     created_at: datetime
     new_achievements: Optional[List] = None
+    plan_adjusted: Optional[bool] = None
+    plan_adjustment_reason: Optional[str] = None
 
 
 # ── Goals ─────────────────────────────────────────────────────────────────────
@@ -95,7 +106,12 @@ class AssessmentCreate(BaseModel):
     available_days: int         # 1–7
     preferred_distance: str     # 'short' | 'medium' | 'long' | 'mixed'
     load_capacity: str          # 'low' | 'moderate' | 'high'
+    weight_kg: Optional[float] = None
+    max_hr: Optional[int] = None
     ai_followup_a: Optional[str] = None  # answer to Claude's follow-up question
+    race_type: Optional[str] = None      # '5K' | '10K' | 'Half Marathon' | 'Marathon'
+    race_date: Optional[str] = None      # ISO date string e.g. '2025-10-12'
+    target_time_min: Optional[float] = None  # target finish time in minutes
 
 
 class AssessmentResponse(BaseModel):

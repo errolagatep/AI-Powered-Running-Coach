@@ -173,6 +173,47 @@ function workoutCard(day) {
   `;
 }
 
+// ── Recalibrate modal ─────────────────────────────────────────
+function openRecalibrateModal() {
+  document.getElementById("recalibrate-modal").classList.remove("hidden");
+  document.body.style.overflow = "hidden";
+}
+
+function closeRecalibrateModal(e) {
+  if (e && e.target !== document.getElementById("recalibrate-modal")) return;
+  document.getElementById("recalibrate-modal").classList.add("hidden");
+  document.body.style.overflow = "";
+}
+
+async function recalibratePlan() {
+  const confirmBtn = document.getElementById("recalibrate-confirm-btn");
+  confirmBtn.disabled = true;
+  confirmBtn.innerHTML = '<span class="btn-spinner"></span> Recalibrating…';
+
+  const recalibrateBtn = document.getElementById("recalibrate-btn");
+  recalibrateBtn.disabled = true;
+
+  document.getElementById("recalibrate-modal").classList.add("hidden");
+  document.body.style.overflow = "";
+  document.getElementById("plan-loading").classList.remove("hidden");
+  document.getElementById("plan-container").classList.add("hidden");
+  document.getElementById("alert").classList.add("hidden");
+
+  try {
+    const data = await api.post("/plans/recalibrate", {});
+    renderPlan(data);
+  } catch (err) {
+    const alertEl = document.getElementById("alert");
+    alertEl.textContent = err.message || "Failed to recalibrate plan. Please try again.";
+    alertEl.classList.remove("hidden");
+  } finally {
+    document.getElementById("plan-loading").classList.add("hidden");
+    confirmBtn.disabled = false;
+    confirmBtn.textContent = "Recalibrate plan";
+    recalibrateBtn.disabled = false;
+  }
+}
+
 function badgeForType(type) {
   const t = type.toLowerCase();
   if (t.includes("easy"))     return "badge-easy";

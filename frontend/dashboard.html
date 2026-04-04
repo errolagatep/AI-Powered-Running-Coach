@@ -98,6 +98,64 @@
   </div>
 </div>
 
+<!-- ── Edit Run Modal ── -->
+<div id="edit-modal" class="modal-backdrop hidden" onclick="closeEditModal(event)">
+  <div class="modal-card" role="dialog" aria-modal="true">
+    <div class="modal-header">
+      <h3 class="modal-title">Edit Run</h3>
+      <button class="modal-close" onclick="closeEditModal()">&times;</button>
+    </div>
+
+    <div id="modal-alert" class="alert alert-error hidden"></div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label for="edit-date">Date</label>
+        <input class="form-control" type="date" id="edit-date" />
+      </div>
+      <div class="form-group">
+        <label for="edit-distance">Distance (km)</label>
+        <input class="form-control" type="number" id="edit-distance" step="0.01" min="0.1" max="200" />
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Duration</label>
+      <div style="display:flex;gap:8px;">
+        <input class="form-control" type="number" id="edit-dur-min" placeholder="Min" min="0" max="999" style="flex:1;" />
+        <input class="form-control" type="number" id="edit-dur-sec" placeholder="Sec" min="0" max="59" style="width:80px;" />
+      </div>
+      <div class="form-hint">Minutes : Seconds</div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label for="edit-hr">Avg Heart Rate (bpm) <span style="opacity:.5">optional</span></label>
+        <input class="form-control" type="number" id="edit-hr" placeholder="145" min="60" max="250" />
+      </div>
+      <div class="form-group">
+        <label>Effort: <span id="edit-effort-display" style="color:var(--accent);font-weight:700;">5</span>/10</label>
+        <div class="slider-container" style="margin-top:8px;">
+          <span style="font-size:12px;color:var(--text-sec);">Easy</span>
+          <input type="range" id="edit-effort" min="1" max="10" value="5"
+                 oninput="document.getElementById('edit-effort-display').textContent=this.value" />
+          <span style="font-size:12px;color:var(--text-sec);">Max</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="edit-notes">Notes <span style="opacity:.5">optional</span></label>
+      <textarea class="form-control" id="edit-notes" rows="2" style="resize:vertical;"></textarea>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeEditModal()">Cancel</button>
+      <button class="btn btn-primary" id="edit-save-btn" onclick="saveEdit()">Save changes</button>
+    </div>
+  </div>
+</div>
+
 <script src="/js/api.js"></script>
 <script src="/js/auth.js"></script>
 <script src="/js/dashboard.js"></script>
