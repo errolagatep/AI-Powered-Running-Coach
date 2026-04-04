@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Let's Get Started — AI Running Coach</title>
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body class="onboarding-page">
+
+<div class="onboarding-wrapper">
+  <div class="onboarding-card">
+
+    <!-- Header -->
+    <div class="onboarding-header">
+      <div class="auth-logo">🏃</div>
+      <h1>Let's build your profile</h1>
+      <p>A few quick questions so your AI coach can personalise everything for you.</p>
+    </div>
+
+    <!-- Step progress bar -->
+    <div class="step-progress" id="step-progress">
+      <div class="step-dot active" data-step="1"></div>
+      <div class="step-line"></div>
+      <div class="step-dot" data-step="2"></div>
+      <div class="step-line"></div>
+      <div class="step-dot" data-step="3"></div>
+      <div class="step-line"></div>
+      <div class="step-dot" data-step="4"></div>
+      <div class="step-line"></div>
+      <div class="step-dot" data-step="5"></div>
+    </div>
+    <p class="step-label" id="step-label">Step 1 of 5</p>
+
+    <div id="alert" class="alert alert-error hidden"></div>
+
+    <!-- ── Step 1: Experience ─────────────────────── -->
+    <div class="onboarding-step active" id="step-1">
+      <h2 class="step-title">How long have you been running?</h2>
+      <div class="option-grid">
+        <label class="option-card">
+          <input type="radio" name="experience" value="beginner:0" />
+          <span class="option-icon">🌱</span>
+          <span class="option-label">Just starting out</span>
+          <span class="option-sub">Less than 6 months</span>
+        </label>
+        <label class="option-card">
+          <input type="radio" name="experience" value="beginner:1" />
+          <span class="option-icon">🚶</span>
+          <span class="option-label">Building a habit</span>
+          <span class="option-sub">6 months – 2 years</span>
+        </label>
+        <label class="option-card">
+          <input type="radio" name="experience" value="intermediate:3" />
+          <span class="option-icon">🏃</span>
+          <span class="option-label">Regular runner</span>
+          <span class="option-sub">2 – 5 years</span>
+        </label>
+        <label class="option-card">
+          <input type="radio" name="experience" value="advanced:6" />
+          <span class="option-icon">⚡</span>
+          <span class="option-label">Experienced</span>
+          <span class="option-sub">5+ years</span>
+        </label>
+      </div>
+      <div class="step-actions">
+        <button class="btn btn-primary btn-full" onclick="goNext(1)">Next →</button>
+        <button class="btn btn-secondary btn-full" style="margin-top:8px;" onclick="skipOnboarding()">Skip for now</button>
+      </div>
+    </div>
+
+    <!-- ── Step 2: Volume ─────────────────────────── -->
+    <div class="onboarding-step" id="step-2">
+      <h2 class="step-title">What's your current weekly running volume?</h2>
+
+      <div class="form-group" style="margin-bottom:24px;">
+        <label>Runs per week</label>
+        <div class="day-toggles">
+          <button type="button" class="day-toggle" data-val="0" onclick="selectWeeklyRuns(0)">0</button>
+          <button type="button" class="day-toggle" data-val="1" onclick="selectWeeklyRuns(1)">1</button>
+          <button type="button" class="day-toggle" data-val="2" onclick="selectWeeklyRuns(2)">2</button>
+          <button type="button" class="day-toggle" data-val="3" onclick="selectWeeklyRuns(3)">3</button>
+          <button type="button" class="day-toggle" data-val="4" onclick="selectWeeklyRuns(4)">4</button>
+          <button type="button" class="day-toggle" data-val="5" onclick="selectWeeklyRuns(5)">5</button>
+          <button type="button" class="day-toggle" data-val="6" onclick="selectWeeklyRuns(6)">6+</button>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="weekly-km">Estimated km per week <span style="opacity:.5">optional</span></label>
+        <input class="form-control" type="number" id="weekly-km" placeholder="e.g. 20" min="0" max="300" step="1" />
+      </div>
+
+      <div class="step-actions">
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-secondary" style="flex:1" onclick="goStep(1)">← Back</button>
+          <button class="btn btn-primary" style="flex:2" onclick="goNext(2)">Next →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Step 3: Goal + Load ────────────────────── -->
+    <div class="onboarding-step" id="step-3">
+      <h2 class="step-title">What's your main running goal?</h2>
+      <div class="option-grid">
+        <label class="option-card">
+          <input type="radio" name="goal" value="fitness" />
+          <span class="option-icon">💪</span>
+          <span class="option-label">General Fitness</span>
+          <span class="option-sub">Stay active & healthy</span>
+        </label>
+        <label class="option-card">
+          <input type="radio" name="goal" value="speed" />
+          <span class="option-icon">⚡</span>
+          <span class="option-label">Run Faster</span>
+          <span class="option-sub">Improve pace & PRs</span>
+        </label>
+        <label class="option-card">
+          <input type="radio" name="goal" value="endurance" />
+          <span class="option-icon">🏔️</span>
+          <span class="option-label">Build Endurance</span>
+          <span class="option-sub">Run longer distances</span>
+        </label>
+        <label class="option-card">
+          <input type="radio" name="goal" value="race_prep" />
+          <span class="option-icon">🏅</span>
+          <span class="option-label">Race Prep</span>
+          <span class="option-sub">Train for a specific event</span>
+        </label>
+        <label class="option-card">
+          <input type="radio" name="goal" value="weight_loss" />
+          <span class="option-icon">🔥</span>
+          <span class="option-label">Weight Loss</span>
+          <span class="option-sub">Burn calories consistently</span>
+        </label>
+      </div>
+
+      <div class="form-group" style="margin-top:24px;">
+        <label>How much training load can you handle?</label>
+        <div class="option-grid" style="grid-template-columns:repeat(3,1fr);">
+          <label class="option-card">
+            <input type="radio" name="load" value="low" />
+            <span class="option-icon">😌</span>
+            <span class="option-label">Easy</span>
+            <span class="option-sub">Light & consistent</span>
+          </label>
+          <label class="option-card">
+            <input type="radio" name="load" value="moderate" />
+            <span class="option-icon">💼</span>
+            <span class="option-label">Moderate</span>
+            <span class="option-sub">Balanced effort</span>
+          </label>
+          <label class="option-card">
+            <input type="radio" name="load" value="high" />
+            <span class="option-icon">🔥</span>
+            <span class="option-label">High</span>
+            <span class="option-sub">Push the limits</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="step-actions">
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-secondary" style="flex:1" onclick="goStep(2)">← Back</button>
+          <button class="btn btn-primary" style="flex:2" onclick="goNext(3)">Next →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Step 4: Schedule ───────────────────────── -->
+    <div class="onboarding-step" id="step-4">
+      <h2 class="step-title">How do you prefer to run?</h2>
+
+      <div class="form-group">
+        <label>Days available per week</label>
+        <div class="day-toggles">
+          <button type="button" class="day-toggle" data-val="1" onclick="selectDays(1)">1</button>
+          <button type="button" class="day-toggle" data-val="2" onclick="selectDays(2)">2</button>
+          <button type="button" class="day-toggle" data-val="3" onclick="selectDays(3)">3</button>
+          <button type="button" class="day-toggle" data-val="4" onclick="selectDays(4)">4</button>
+          <button type="button" class="day-toggle" data-val="5" onclick="selectDays(5)">5</button>
+          <button type="button" class="day-toggle" data-val="6" onclick="selectDays(6)">6</button>
+          <button type="button" class="day-toggle" data-val="7" onclick="selectDays(7)">7</button>
+        </div>
+      </div>
+
+      <div class="form-group" style="margin-top:24px;">
+        <label>Preferred run distance</label>
+        <div class="option-grid" style="grid-template-columns:repeat(2,1fr);">
+          <label class="option-card">
+            <input type="radio" name="distance" value="short" />
+            <span class="option-icon">🏙️</span>
+            <span class="option-label">Short</span>
+            <span class="option-sub">3 – 5 km</span>
+          </label>
+          <label class="option-card">
+            <input type="radio" name="distance" value="medium" />
+            <span class="option-icon">🛤️</span>
+            <span class="option-label">Medium</span>
+            <span class="option-sub">5 – 10 km</span>
+          </label>
+          <label class="option-card">
+            <input type="radio" name="distance" value="long" />
+            <span class="option-icon">🏞️</span>
+            <span class="option-label">Long</span>
+            <span class="option-sub">10 km+</span>
+          </label>
+          <label class="option-card">
+            <input type="radio" name="distance" value="mixed" />
+            <span class="option-icon">🔀</span>
+            <span class="option-label">Mixed</span>
+            <span class="option-sub">Variety</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="step-actions">
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-secondary" style="flex:1" onclick="goStep(3)">← Back</button>
+          <button class="btn btn-primary" style="flex:2" onclick="goNext(4)">Next →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Step 5: Injuries ───────────────────────── -->
+    <div class="onboarding-step" id="step-5">
+      <h2 class="step-title">Any injury history to be aware of?</h2>
+      <p style="color:var(--text-sec);font-size:14px;margin-bottom:20px;">
+        Your coach will factor this in when designing your plan. Leave blank if none.
+      </p>
+      <div class="form-group">
+        <label for="injury-history">Injury notes <span style="opacity:.5">optional</span></label>
+        <textarea class="form-control" id="injury-history" rows="3"
+          placeholder="e.g. Left knee pain, shin splints last year…" style="resize:vertical;"></textarea>
+      </div>
+
+      <div class="step-actions">
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-secondary" style="flex:1" onclick="goStep(4)">← Back</button>
+          <button class="btn btn-primary" style="flex:2" id="analyze-btn" onclick="submitAssessment()">
+            Analyze My Profile 🤖
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Step 6: Claude follow-up (conditional) ── -->
+    <div class="onboarding-step" id="step-6">
+      <h2 class="step-title">One quick question from your coach</h2>
+      <div class="coach-bubble">
+        <span class="coach-avatar">🤖</span>
+        <p id="followup-question" class="coach-message"></p>
+      </div>
+      <div class="form-group" style="margin-top:20px;">
+        <label for="followup-answer">Your answer</label>
+        <textarea class="form-control" id="followup-answer" rows="3" placeholder="Type your answer…" style="resize:vertical;"></textarea>
+      </div>
+      <div class="step-actions">
+        <button class="btn btn-primary btn-full" onclick="submitFollowup()">Continue →</button>
+        <button class="btn btn-secondary btn-full" style="margin-top:8px;" onclick="showFinalScreen()">Skip this question</button>
+      </div>
+    </div>
+
+    <!-- ── Final screen ───────────────────────────── -->
+    <div class="onboarding-step" id="step-final">
+      <div style="text-align:center;padding:16px 0;">
+        <div style="font-size:64px;margin-bottom:16px;">🎉</div>
+        <h2 style="font-size:22px;margin-bottom:8px;">You're all set!</h2>
+        <p style="color:var(--text-sec);margin-bottom:32px;">
+          Your AI coach knows your profile. Ready to start training?
+        </p>
+        <button class="btn btn-primary btn-full" id="gen-plan-btn" onclick="generatePlan()">
+          Generate My First Training Plan
+        </button>
+        <a href="/dashboard.html" class="btn btn-secondary btn-full" style="margin-top:10px;display:block;">
+          Go to Dashboard
+        </a>
+      </div>
+    </div>
+
+  </div><!-- /onboarding-card -->
+</div><!-- /onboarding-wrapper -->
+
+<script src="/js/api.js"></script>
+<script src="/js/auth.js"></script>
+<script src="/js/onboarding.js"></script>
+</body>
+</html>

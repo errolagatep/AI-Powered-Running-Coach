@@ -1,6 +1,6 @@
 fastapi
 uvicorn[standard]
-sqlalchemy
+supabase
 anthropic
 python-jose[cryptography]
 passlib[bcrypt]

@@ -1,98 +1,96 @@
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
+from supabase import Client
 from datetime import datetime, timedelta
 import json
-from ..database import get_db
-from ..models import RunLog, Goal, TrainingPlan
+from ..database import get_supabase
 from ..auth import get_current_user
-from ..models import User
 from ..coach import generate_weekly_plan
 
 router = APIRouter(prefix="/api/plans", tags=["plans"])
 
 
-def _run_to_dict(r: RunLog) -> dict:
-    return {
-        "date": str(r.date),
-        "distance_km": r.distance_km,
-        "duration_min": r.duration_min,
-        "pace_per_km": r.pace_per_km,
-        "heart_rate_avg": r.heart_rate_avg,
-        "effort_level": r.effort_level,
-    }
-
-
 @router.get("/current")
 def get_current_plan(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase),
 ):
-    plan = (
-        db.query(TrainingPlan)
-        .filter(TrainingPlan.user_id == current_user.id)
-        .order_by(TrainingPlan.generated_at.desc())
-        .first()
+    result = (
+        supabase.table("training_plans")
+        .select("*")
+        .eq("user_id", current_user["id"])
+        .order("generated_at", desc=True)
+        .limit(1)
+        .execute()
     )
-    if not plan:
+    if not result.data:
         return None
+    plan = result.data[0]
     return {
-        "id": plan.id,
-        "week_start": plan.week_start,
-        "generated_at": plan.generated_at,
-        "plan": json.loads(plan.plan_json),
+        "id": plan["id"],
+        "week_start": plan["week_start"],
+        "generated_at": plan["generated_at"],
+        "plan": json.loads(plan["plan_json"]),
     }
 
 
 @router.post("/generate")
 def create_plan(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase),
 ):
-    recent_runs = (
-        db.query(RunLog)
-        .filter(RunLog.user_id == current_user.id)
-        .order_by(RunLog.date.desc())
+    recent_result = (
+        supabase.table("run_logs")
+        .select("date,distance_km,duration_min,pace_per_km,heart_rate_avg,effort_level")
+        .eq("user_id", current_user["id"])
+        .order("date", desc=True)
         .limit(28)
-        .all()
+        .execute()
     )
 
-    goal_obj = (
-        db.query(Goal)
-        .filter(Goal.user_id == current_user.id)
-        .order_by(Goal.created_at.desc())
-        .first()
+    goal_result = (
+        supabase.table("goals")
+        .select("race_type,race_date,target_time_min")
+        .eq("user_id", current_user["id"])
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
     )
-    goal = (
-        {"race_type": goal_obj.race_type, "race_date": goal_obj.race_date, "target_time_min": goal_obj.target_time_min}
-        if goal_obj
-        else None
+    goal = None
+    if goal_result.data:
+        g = goal_result.data[0]
+        goal = {"race_type": g["race_type"], "race_date": g["race_date"], "target_time_min": g["target_time_min"]}
+
+    assessment_result = (
+        supabase.table("runner_assessments")
+        .select("*")
+        .eq("user_id", current_user["id"])
+        .execute()
     )
+    assessment = assessment_result.data[0] if assessment_result.data else None
 
     plan_data = generate_weekly_plan(
-        recent_runs=[_run_to_dict(r) for r in recent_runs],
+        recent_runs=recent_result.data,
         goal=goal,
-        user_name=current_user.name,
+        user_name=current_user["name"],
+        assessment=assessment,
     )
 
-    # Start on next Monday
     today = datetime.utcnow()
     days_to_monday = (7 - today.weekday()) % 7 or 7
     week_start = (today + timedelta(days=days_to_monday)).replace(
         hour=0, minute=0, second=0, microsecond=0
     )
 
-    plan = TrainingPlan(
-        user_id=current_user.id,
-        week_start=week_start,
-        plan_json=json.dumps(plan_data),
-    )
-    db.add(plan)
-    db.commit()
-    db.refresh(plan)
+    result = supabase.table("training_plans").insert({
+        "user_id": current_user["id"],
+        "week_start": week_start.isoformat(),
+        "plan_json": json.dumps(plan_data),
+    }).execute()
 
+    plan = result.data[0]
     return {
-        "id": plan.id,
-        "week_start": plan.week_start,
-        "generated_at": plan.generated_at,
+        "id": plan["id"],
+        "week_start": plan["week_start"],
+        "generated_at": plan["generated_at"],
         "plan": plan_data,
     }

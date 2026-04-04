@@ -7,15 +7,19 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   try {
-    const [runs, progress, goal] = await Promise.all([
+    const [runs, progress, goal, gam, achievements] = await Promise.all([
       api.get("/runs/?limit=5"),
       api.get("/progress/"),
       api.get("/goals/"),
+      api.get("/gamification/").catch(() => null),
+      api.get("/gamification/achievements").catch(() => []),
     ]);
 
     renderStats(progress, runs);
     renderGoalBanner(goal);
     renderRuns(runs);
+    if (gam) renderGamification(gam);
+    if (achievements) checkNewAchievements(achievements);
   } catch (err) {
     console.error(err);
   }
@@ -121,6 +125,57 @@ function runCard(run) {
       ${feedbackSection}
     </div>
   `;
+}
+
+function renderGamification(gam) {
+  // Streak card
+  const streakCard = document.getElementById("streak-stat-card");
+  streakCard.style.display = "";
+  document.getElementById("stat-streak").textContent = gam.current_streak;
+
+  // Level + XP card
+  const levelCard = document.getElementById("level-stat-card");
+  levelCard.style.display = "";
+  document.getElementById("stat-level").textContent = gam.level;
+
+  const xpInLevel = gam.total_xp - gam.xp_for_current_level;
+  const xpRange   = gam.xp_for_next_level - gam.xp_for_current_level;
+  const pct = xpRange > 0 ? Math.min(100, (xpInLevel / xpRange) * 100) : 100;
+  document.getElementById("stat-xp-bar").style.width = `${pct}%`;
+  document.getElementById("stat-xp-text").textContent = `${gam.total_xp} XP`;
+}
+
+function checkNewAchievements(achievements) {
+  const seen = JSON.parse(localStorage.getItem("seen_achievements") || "[]");
+  const newOnes = achievements.filter(a => !seen.includes(a.achievement_key));
+  if (newOnes.length === 0) return;
+
+  // Mark all as seen
+  const allKeys = achievements.map(a => a.achievement_key);
+  localStorage.setItem("seen_achievements", JSON.stringify(allKeys));
+
+  // Show toasts
+  newOnes.forEach((a, i) => {
+    setTimeout(() => showAchievementToast(a), i * 800);
+  });
+}
+
+function showAchievementToast(a) {
+  const container = document.getElementById("toast-container");
+  const toast = document.createElement("div");
+  toast.className = "toast-achievement";
+  toast.innerHTML = `
+    <div class="toast-icon">${a.icon}</div>
+    <div class="toast-body">
+      <div class="toast-title">Achievement Unlocked!</div>
+      <div class="toast-name">${a.title}</div>
+      <div class="toast-desc">${a.description}</div>
+    </div>
+    <button class="toast-close" onclick="this.parentElement.remove()">×</button>
+  `;
+  container.appendChild(toast);
+  // Auto-remove after 6 seconds
+  setTimeout(() => toast.remove(), 6000);
 }
 
 function toggleFeedback(btn) {

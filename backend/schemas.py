@@ -21,12 +21,13 @@ class UserLogin(BaseModel):
 class UserResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    id: int
+    id: str
     email: str
     name: str
     weight_kg: Optional[float] = None
     max_hr: Optional[int] = None
     created_at: datetime
+    onboarding_complete: bool = False
 
 
 class Token(BaseModel):
@@ -49,8 +50,8 @@ class RunCreate(BaseModel):
 class RunResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    id: int
-    user_id: int
+    id: str
+    user_id: str
     date: datetime
     distance_km: float
     duration_min: float
@@ -60,6 +61,7 @@ class RunResponse(BaseModel):
     notes: Optional[str] = None
     ai_feedback: Optional[str] = None
     created_at: datetime
+    new_achievements: Optional[List] = None
 
 
 # ── Goals ─────────────────────────────────────────────────────────────────────
@@ -73,9 +75,62 @@ class GoalCreate(BaseModel):
 class GoalResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    id: int
-    user_id: int
+    id: str
+    user_id: str
     race_type: str
     race_date: datetime
     target_time_min: Optional[float] = None
     created_at: datetime
+
+
+# ── Assessment ────────────────────────────────────────────────
+
+class AssessmentCreate(BaseModel):
+    experience_level: str       # 'beginner' | 'intermediate' | 'advanced'
+    years_running: float        # 0, 0.5, 1, 2, 5+
+    weekly_runs: int            # runs per week currently
+    weekly_km: float            # km/week currently
+    primary_goal: str           # 'fitness' | 'speed' | 'endurance' | 'race_prep' | 'weight_loss'
+    injury_history: Optional[str] = None
+    available_days: int         # 1–7
+    preferred_distance: str     # 'short' | 'medium' | 'long' | 'mixed'
+    load_capacity: str          # 'low' | 'moderate' | 'high'
+    ai_followup_a: Optional[str] = None  # answer to Claude's follow-up question
+
+
+class AssessmentResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    user_id: str
+    experience_level: str
+    years_running: float
+    weekly_runs: int
+    weekly_km: float
+    primary_goal: str
+    injury_history: Optional[str] = None
+    available_days: int
+    preferred_distance: str
+    load_capacity: str
+    ai_followup_q: Optional[str] = None
+    ai_followup_a: Optional[str] = None
+    completed_at: datetime
+
+
+# ── Gamification ──────────────────────────────────────────────
+
+class GamificationResponse(BaseModel):
+    total_xp: int
+    level: int
+    xp_for_current_level: int  # XP threshold at start of this level
+    xp_for_next_level: int     # XP threshold for next level
+    current_streak: int
+    longest_streak: int
+
+
+class AchievementResponse(BaseModel):
+    achievement_key: str
+    title: str
+    description: str
+    icon: str
+    unlocked_at: datetime

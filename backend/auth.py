@@ -1,12 +1,11 @@
+import os
 from datetime import datetime, timedelta
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from sqlalchemy.orm import Session
-from .database import get_db
-from .models import User
-import os
+from supabase import Client
+from .database import get_supabase
 
 SECRET_KEY = os.getenv("SECRET_KEY", "fallback-secret-change-in-production")
 ALGORITHM = "HS256"
@@ -32,8 +31,8 @@ def create_access_token(data: dict) -> str:
 
 def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: Session = Depends(get_db),
-) -> User:
+    supabase: Client = Depends(get_supabase),
+) -> dict:
     try:
         payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
         user_id = payload.get("sub")
@@ -42,7 +41,7 @@ def get_current_user(
     except JWTError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
 
-    user = db.query(User).filter(User.id == int(user_id)).first()
-    if not user:
+    result = supabase.table("users").select("*").eq("id", user_id).execute()
+    if not result.data:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
-    return user
+    return result.data[0]

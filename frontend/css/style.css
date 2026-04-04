@@ -718,3 +718,256 @@ input[type="range"]::-webkit-slider-thumb {
   .plan-grid { grid-template-columns: 1fr; }
   .navbar-nav { display: none; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ONBOARDING
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.onboarding-page { background: var(--bg); min-height: 100vh; display: flex; align-items: flex-start; justify-content: center; padding: 40px 16px; }
+
+.onboarding-wrapper { width: 100%; max-width: 560px; }
+
+.onboarding-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 36px 32px;
+}
+
+.onboarding-header { text-align: center; margin-bottom: 28px; }
+.onboarding-header h1 { font-size: 22px; font-weight: 700; margin: 12px 0 6px; }
+.onboarding-header p  { font-size: 14px; color: var(--text-sec); }
+
+/* Step progress dots */
+.step-progress {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  margin-bottom: 6px;
+}
+.step-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: var(--border);
+  transition: background .25s;
+  flex-shrink: 0;
+}
+.step-dot.active { background: var(--accent); }
+.step-dot.done   { background: var(--accent-dim); }
+.step-line { flex: 1; max-width: 40px; height: 2px; background: var(--border); }
+
+.step-label { text-align: center; font-size: 12px; color: var(--text-sec); margin-bottom: 24px; }
+
+/* Step visibility */
+.onboarding-step { display: none; }
+.onboarding-step.active { display: block; }
+
+.step-title { font-size: 17px; font-weight: 600; margin-bottom: 20px; }
+.step-actions { margin-top: 24px; }
+
+/* Option cards (radio buttons styled as cards) */
+.option-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.option-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 4px;
+  padding: 14px 10px;
+  background: var(--bg);
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: border-color .2s, background .2s;
+  position: relative;
+}
+.option-card:hover { border-color: var(--accent-dim); }
+.option-card.selected,
+.option-card:has(input:checked) { border-color: var(--accent); background: rgba(63,185,80,0.08); }
+.option-card input[type=radio] { position: absolute; opacity: 0; pointer-events: none; }
+.option-icon  { font-size: 26px; }
+.option-label { font-size: 13px; font-weight: 600; color: var(--text); }
+.option-sub   { font-size: 11px; color: var(--text-sec); }
+
+/* Day toggle buttons */
+.day-toggles { display: flex; gap: 8px; flex-wrap: wrap; }
+.day-toggle {
+  width: 40px; height: 40px;
+  border-radius: 8px;
+  border: 2px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color .2s, background .2s;
+}
+.day-toggle:hover  { border-color: var(--accent-dim); }
+.day-toggle.active { border-color: var(--accent); background: rgba(63,185,80,0.12); color: var(--accent); }
+
+/* Coach bubble (follow-up question) */
+.coach-bubble {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  background: rgba(63,185,80,0.07);
+  border: 1px solid rgba(63,185,80,0.2);
+  border-radius: 10px;
+  padding: 16px;
+}
+.coach-avatar  { font-size: 28px; flex-shrink: 0; }
+.coach-message { font-size: 14px; color: var(--text); line-height: 1.6; margin: 0; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   GAMIFICATION — XP BAR, STREAK, LEVEL BADGE
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* XP progress bar */
+.xp-bar-wrap {
+  flex: 1;
+  height: 6px;
+  background: var(--border);
+  border-radius: 99px;
+  overflow: hidden;
+}
+.xp-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent-dim), var(--accent));
+  border-radius: 99px;
+  transition: width .5s ease;
+}
+
+/* Level badge */
+.level-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 52px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #6e40c9, #bc8cff);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .4px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.level-badge-large { font-size: 26px; font-weight: 700; color: var(--purple); }
+
+/* Streak on stat cards */
+.streak-stat-card .stat-value { color: #f7931a; }
+
+/* XP summary card (achievements page) */
+.xp-summary-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  margin-bottom: 16px;
+}
+.xp-summary-left { display: flex; align-items: center; gap: 12px; min-width: 160px; }
+
+/* Streak card (achievements page) */
+.streak-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+}
+.streak-fire  { font-size: 32px; }
+.streak-count { font-size: 28px; font-weight: 700; color: #f7931a; line-height: 1; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ACHIEVEMENT CARDS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.ach-category {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-sec);
+  text-transform: uppercase;
+  letter-spacing: .8px;
+  margin: 24px 0 10px;
+}
+.ach-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.achievement-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  transition: border-color .2s;
+}
+.achievement-card:not(.locked) { border-color: rgba(63,185,80,0.3); }
+.achievement-card:not(.locked):hover { border-color: var(--accent); }
+.achievement-card.locked { opacity: .35; filter: grayscale(1); }
+
+.ach-icon  { font-size: 28px; flex-shrink: 0; }
+.ach-body  { min-width: 0; }
+.ach-title { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 2px; }
+.ach-desc  { font-size: 11px; color: var(--text-sec); margin-bottom: 4px; }
+.ach-date  { font-size: 11px; color: var(--accent); }
+.ach-date.locked-label { color: var(--text-sec); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ACHIEVEMENT TOAST NOTIFICATIONS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+#toast-container {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 9999;
+  pointer-events: none;
+}
+
+.toast-achievement {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--card);
+  border: 1px solid rgba(63,185,80,0.4);
+  border-left: 4px solid var(--accent);
+  border-radius: 10px;
+  padding: 14px 16px;
+  min-width: 280px;
+  max-width: 340px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+  pointer-events: all;
+  animation: slideInToast .35s ease;
+}
+
+@keyframes slideInToast {
+  from { opacity: 0; transform: translateX(40px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.toast-icon  { font-size: 26px; flex-shrink: 0; }
+.toast-body  { flex: 1; min-width: 0; }
+.toast-title { font-size: 10px; text-transform: uppercase; letter-spacing: .8px; color: var(--accent); font-weight: 600; margin-bottom: 2px; }
+.toast-name  { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 2px; }
+.toast-desc  { font-size: 11px; color: var(--text-sec); }
+.toast-close {
+  background: none; border: none; color: var(--text-sec); font-size: 18px;
+  cursor: pointer; padding: 0 2px; flex-shrink: 0; line-height: 1;
+}
+.toast-close:hover { color: var(--text); }

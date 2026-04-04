@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Achievements — AI Running Coach</title>
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+
+<nav class="navbar">
+  <a class="navbar-brand" href="/dashboard.html">🏃 RunCoach</a>
+  <ul class="navbar-nav">
+    <li><a href="/dashboard.html">Dashboard</a></li>
+    <li><a href="/log_run.html">Log Run</a></li>
+    <li><a href="/training_plan.html">Training Plan</a></li>
+    <li><a href="/progress.html">Progress</a></li>
+    <li><a href="/achievements.html" class="active">Achievements</a></li>
+  </ul>
+  <div class="navbar-actions">
+    <span class="navbar-user" id="navbar-user"></span>
+    <button class="btn btn-secondary" id="logout-btn" style="padding:6px 12px;font-size:13px;">Sign out</button>
+  </div>
+</nav>
+
+<div class="container">
+  <div class="page-header">
+    <h1>Achievements</h1>
+    <p>Unlock badges by reaching milestones in your running journey.</p>
+  </div>
+
+  <!-- XP + Level bar -->
+  <div class="card xp-summary-card" id="xp-summary" style="display:none;">
+    <div class="xp-summary-left">
+      <div class="level-badge" id="ach-level">Lv 1</div>
+      <div>
+        <div style="font-weight:600;font-size:15px;" id="ach-xp-text">0 XP</div>
+        <div style="font-size:12px;color:var(--text-sec);" id="ach-xp-next">0 XP to Level 2</div>
+      </div>
+    </div>
+    <div class="xp-bar-wrap">
+      <div class="xp-bar" id="ach-xp-bar" style="width:0%"></div>
+    </div>
+  </div>
+
+  <!-- Streak -->
+  <div class="card streak-card" id="streak-card" style="display:none;margin-bottom:24px;">
+    <span class="streak-fire">🔥</span>
+    <div>
+      <div class="streak-count" id="streak-count">0</div>
+      <div style="font-size:13px;color:var(--text-sec);">day streak</div>
+    </div>
+    <div style="margin-left:auto;text-align:right;">
+      <div style="font-size:12px;color:var(--text-sec);">Longest</div>
+      <div style="font-weight:600;" id="streak-longest">0 days</div>
+    </div>
+  </div>
+
+  <!-- Achievements grid -->
+  <div id="ach-loading" class="loading"><div class="spinner"></div> Loading achievements…</div>
+
+  <div id="ach-grid" class="achievement-grid hidden"></div>
+</div>
+
+<script src="/js/api.js"></script>
+<script src="/js/auth.js"></script>
+<script>
+// All possible achievements (must match backend ACHIEVEMENTS dict)
+const ALL_ACHIEVEMENTS = [
+  { key: "first_run",       icon: "👟", title: "First Steps",        description: "Logged your very first run",              category: "Milestones" },
+  { key: "runs_10",         icon: "🔟", title: "Ten Strong",          description: "Logged 10 runs",                          category: "Milestones" },
+  { key: "runs_50",         icon: "5️⃣0️⃣", title: "Fifty Milestone",    description: "Logged 50 runs",                          category: "Milestones" },
+  { key: "runs_100",        icon: "💯", title: "Century Runner",      description: "Logged 100 runs",                         category: "Milestones" },
+  { key: "dist_10km",       icon: "🥉", title: "10 km Club",          description: "Accumulated 10 km total",                 category: "Distance"   },
+  { key: "dist_100km",      icon: "🥈", title: "100 km Club",         description: "Accumulated 100 km total",                category: "Distance"   },
+  { key: "dist_500km",      icon: "🥇", title: "500 km Club",         description: "Accumulated 500 km total",                category: "Distance"   },
+  { key: "dist_1000km",     icon: "🏆", title: "1000 km Legend",      description: "Accumulated 1000 km total",               category: "Distance"   },
+  { key: "streak_3",        icon: "🔥", title: "3-Day Streak",        description: "Ran 3 days in a row",                     category: "Streaks"    },
+  { key: "streak_7",        icon: "🔥🔥", title: "Week Warrior",       description: "Ran 7 days in a row",                     category: "Streaks"    },
+  { key: "streak_30",       icon: "⚡", title: "Iron Streak",          description: "Ran 30 days in a row",                    category: "Streaks"    },
+  { key: "speed_demon",     icon: "💨", title: "Speed Demon",          description: "Ran a km in under 5 minutes",             category: "Speed"      },
+  { key: "weekly_warrior",  icon: "🗓️", title: "Weekly Warrior",      description: "Ran 30+ km in a single week",             category: "Consistency"},
+];
+
+document.addEventListener("DOMContentLoaded", async () => {
+  if (!requireAuth()) return;
+
+  try {
+    const [gam, unlocked] = await Promise.all([
+      api.get("/gamification/"),
+      api.get("/gamification/achievements"),
+    ]);
+
+    renderXP(gam);
+    renderAchievements(unlocked);
+  } catch (err) {
+    console.error(err);
+  }
+});
+
+function renderXP(gam) {
+  const card = document.getElementById("xp-summary");
+  card.style.display = "flex";
+
+  document.getElementById("ach-level").textContent = `Lv ${gam.level}`;
+  document.getElementById("ach-xp-text").textContent = `${gam.total_xp.toLocaleString()} XP`;
+
+  const xpInLevel = gam.total_xp - gam.xp_for_current_level;
+  const xpRange   = gam.xp_for_next_level - gam.xp_for_current_level;
+  const pct = xpRange > 0 ? Math.min(100, (xpInLevel / xpRange) * 100) : 100;
+  document.getElementById("ach-xp-bar").style.width = `${pct}%`;
+  const needed = gam.xp_for_next_level - gam.total_xp;
+  document.getElementById("ach-xp-next").textContent = needed > 0
+    ? `${needed} XP to Level ${gam.level + 1}`
+    : "Max level reached!";
+
+  const streakCard = document.getElementById("streak-card");
+  streakCard.style.display = "flex";
+  document.getElementById("streak-count").textContent = gam.current_streak;
+  document.getElementById("streak-longest").textContent = `${gam.longest_streak} days`;
+}
+
+function renderAchievements(unlocked) {
+  document.getElementById("ach-loading").classList.add("hidden");
+  const grid = document.getElementById("ach-grid");
+  grid.classList.remove("hidden");
+
+  const unlockedMap = {};
+  unlocked.forEach(a => { unlockedMap[a.achievement_key] = a; });
+
+  // Group by category
+  const categories = [...new Set(ALL_ACHIEVEMENTS.map(a => a.category))];
+  let html = "";
+  categories.forEach(cat => {
+    html += `<h3 class="ach-category">${cat}</h3><div class="ach-row">`;
+    ALL_ACHIEVEMENTS.filter(a => a.category === cat).forEach(a => {
+      const u = unlockedMap[a.key];
+      const dateStr = u ? new Date(u.unlocked_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : null;
+      html += `
+        <div class="achievement-card${u ? "" : " locked"}" title="${u ? "Unlocked " + dateStr : "Locked"}">
+          <div class="ach-icon">${a.icon}</div>
+          <div class="ach-body">
+            <div class="ach-title">${a.title}</div>
+            <div class="ach-desc">${a.description}</div>
+            ${u ? `<div class="ach-date">Unlocked ${dateStr}</div>` : `<div class="ach-date locked-label">🔒 Locked</div>`}
+          </div>
+        </div>`;
+    });
+    html += `</div>`;
+  });
+  grid.innerHTML = html;
+}
+</script>
+</body>
+</html>
