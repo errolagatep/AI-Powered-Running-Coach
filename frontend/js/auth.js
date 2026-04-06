@@ -1,15 +1,3 @@
-// Pick up JWT token injected via URL query param (Google OAuth redirect)
-(function () {
-  const params = new URLSearchParams(window.location.search);
-  const urlToken = params.get("token");
-  if (urlToken) {
-    localStorage.setItem("token", urlToken);
-    // Clean the token from the URL without a page reload
-    const clean = window.location.pathname + window.location.search.replace(/[?&]token=[^&]+/, "").replace(/^&/, "?");
-    window.history.replaceState(null, "", clean || window.location.pathname);
-  }
-})();
-
 function getToken()   { return localStorage.getItem("token"); }
 function getUser()    { return JSON.parse(localStorage.getItem("user") || "null"); }
 function isLoggedIn() { return !!getToken(); }
@@ -54,12 +42,34 @@ function effortClass(effort) {
   return "effort-hard";
 }
 
-// Render navbar user info if element exists
-document.addEventListener("DOMContentLoaded", () => {
+function renderNavbarUser(user) {
   const userEl = document.getElementById("navbar-user");
-  if (userEl) {
-    const user = getUser();
-    if (user) userEl.textContent = user.name;
+  if (!userEl || !user) return;
+  if (user.avatar_url) {
+    userEl.innerHTML = `<a href="/profile.html" class="navbar-user-link">
+      <img src="${user.avatar_url}" class="navbar-avatar" alt="${user.name}" />
+      <span>${user.name}</span>
+    </a>`;
+  } else {
+    userEl.innerHTML = `<a href="/profile.html" class="navbar-user-link">${user.name}</a>`;
+  }
+}
+
+// Render navbar user info if element exists; fetch from API if user object missing after OAuth
+document.addEventListener("DOMContentLoaded", async () => {
+  if (getToken() && !getUser()) {
+    try {
+      const res = await fetch("/api/auth/me", {
+        headers: { "Authorization": `Bearer ${getToken()}` },
+      });
+      if (res.ok) {
+        const user = await res.json();
+        localStorage.setItem("user", JSON.stringify(user));
+        renderNavbarUser(user);
+      }
+    } catch (_) {}
+  } else {
+    renderNavbarUser(getUser());
   }
   const logoutBtn = document.getElementById("logout-btn");
   if (logoutBtn) logoutBtn.addEventListener("click", logout);

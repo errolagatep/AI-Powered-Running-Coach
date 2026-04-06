@@ -7,16 +7,18 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   try {
-    const [runs, progress, goal, gam, achievements] = await Promise.all([
-      api.get("/runs/?limit=5"),
+    const [runs, progress, goal, gam, achievements, plan] = await Promise.all([
+      api.get("/runs/?limit=10"),
       api.get("/progress/"),
       api.get("/goals/"),
       api.get("/gamification/").catch(() => null),
       api.get("/gamification/achievements").catch(() => []),
+      api.get("/plans/current").catch(() => null),
     ]);
 
     renderStats(progress, runs);
     renderGoalBanner(goal);
+    renderTodayWorkout(plan);
     renderRuns(runs);
     if (gam) renderGamification(gam);
     if (achievements) checkNewAchievements(achievements);
@@ -24,6 +26,20 @@ document.addEventListener("DOMContentLoaded", async () => {
     console.error(err);
   }
 });
+
+// Standalone loadRuns — called by integrations.js after Strava sync
+async function loadRuns() {
+  document.getElementById("runs-loading").classList.remove("hidden");
+  document.getElementById("run-list").classList.add("hidden");
+  document.getElementById("no-runs").classList.add("hidden");
+  try {
+    const runs = await api.get("/runs/?limit=10");
+    renderRuns(runs);
+  } catch (err) {
+    console.error(err);
+    document.getElementById("runs-loading").classList.add("hidden");
+  }
+}
 
 function renderStats(progress, runs) {
   // Total runs
@@ -65,6 +81,81 @@ function renderGoalBanner(goal) {
   document.getElementById("goal-detail").textContent = detail;
 }
 
+function badgeForType(type) {
+  const t = (type || "").toLowerCase();
+  if (t.includes("easy"))      return "badge-easy";
+  if (t.includes("tempo"))     return "badge-tempo";
+  if (t.includes("interval"))  return "badge-interval";
+  if (t.includes("long"))      return "badge-long";
+  if (t.includes("rest"))      return "badge-rest";
+  if (t.includes("recovery"))  return "badge-rest";
+  return "badge-easy";
+}
+
+function renderTodayWorkout(planData) {
+  const el = document.getElementById("today-workout");
+  if (!planData?.plan?.days) return;
+
+  const DAY_NAMES = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+  const todayName = DAY_NAMES[new Date().getDay()];
+  const workout = planData.plan.days.find(d => d.day === todayName);
+  if (!workout) return;
+
+  const isRest = ["Rest","Active Recovery"].includes(workout.workout_type);
+  const badgeClass = badgeForType(workout.workout_type || "Easy Run");
+
+  const metrics = !isRest
+    ? `<div class="today-workout-metrics">
+         <div class="today-metric"><span class="today-metric-val">${workout.distance_km?.toFixed(1) || 0} km</span><span class="today-metric-lbl">Distance</span></div>
+         <div class="today-metric"><span class="today-metric-val">${workout.duration_min || 0} min</span><span class="today-metric-lbl">Duration</span></div>
+         <div class="today-metric"><span class="today-metric-val">${workout.intensity || "—"}</span><span class="today-metric-lbl">Intensity</span></div>
+       </div>`
+    : "";
+
+  el.innerHTML = `
+    <div class="today-workout-card">
+      <div class="today-workout-top">
+        <div>
+          <div class="today-workout-eyebrow">Today · ${todayName}</div>
+          <div class="today-workout-title">${workout.title}</div>
+        </div>
+        <span class="workout-type-badge ${badgeClass}">${workout.workout_type}</span>
+      </div>
+      <p class="today-workout-desc">${workout.description}</p>
+      ${metrics}
+      ${workout.notes ? `<p class="today-workout-notes">${workout.notes}</p>` : ""}
+      <a href="/training_plan.html" class="today-workout-link">View full week →</a>
+    </div>`;
+  el.classList.remove("hidden");
+}
+
+function isWithin7Days(dateStr) {
+  const runDay    = dateStr.slice(0, 10); // "YYYY-MM-DD"
+  const cutoff    = new Date();
+  cutoff.setDate(cutoff.getDate() - 7);
+  const cutoffDay = cutoff.toISOString().slice(0, 10);
+  return runDay >= cutoffDay;
+}
+
+async function generateFeedback(runId, btn) {
+  btn.disabled = true;
+  btn.textContent = "Generating…";
+  try {
+    const updated = await api.post(`/runs/${runId}/regenerate`, {});
+    _runsCache[updated.id] = updated;
+    const card = document.getElementById(`run-card-${runId}`);
+    if (card) {
+      card.outerHTML = runCard(updated);
+      document.getElementById(`run-card-${runId}`)?.classList.add("run-expanded");
+      initRouteMaps([updated]);
+    }
+  } catch (err) {
+    btn.disabled = false;
+    btn.textContent = "✨ Generate AI Feedback";
+    alert(err.message || "Failed to generate feedback.");
+  }
+}
+
 function formatTargetTime(minutes) {
   const h = Math.floor(minutes / 60);
   const m = Math.round(minutes % 60);
@@ -87,53 +178,119 @@ function renderRuns(runs) {
   const list = document.getElementById("run-list");
   list.classList.remove("hidden");
   list.innerHTML = runs.map(run => runCard(run)).join("");
+  initRouteMaps(runs);
 }
 
 function runCard(run) {
-  const effort = run.effort_level;
-  const cls = effortClass(effort);
-  const hrs = Math.floor(run.duration_min / 60);
-  const mins = Math.round(run.duration_min % 60);
-  const durStr = hrs > 0 ? `${hrs}h ${mins}m` : `${mins} min`;
-  const hrStr = run.heart_rate_avg ? `${run.heart_rate_avg} bpm` : "—";
+  const effort  = run.effort_level;
+  const cls     = effortClass(effort);
+  const hrs     = Math.floor(run.duration_min / 60);
+  const mins    = Math.round(run.duration_min % 60);
+  const durStr  = hrs > 0 ? `${hrs}h ${mins}m` : `${mins} min`;
+  const hrStr   = run.heart_rate_avg ? `${run.heart_rate_avg} bpm` : "—";
+  const stravaTag = run.strava_activity_id ? `<span class="strava-tag">Strava</span>` : "";
 
-  const feedbackSection = run.ai_feedback
-    ? `<button class="feedback-toggle" onclick="toggleFeedback(this)">▶ Show AI feedback</button>
-       <div class="feedback-content">${renderMarkdown(run.ai_feedback)}</div>`
+  let expandContent;
+  if (run.ai_feedback) {
+    expandContent = `<div class="feedback-content">${renderMarkdown(run.ai_feedback)}</div>`;
+  } else if (isWithin7Days(run.date)) {
+    expandContent = `<div style="padding:10px 0 4px;">
+      <button class="btn btn-secondary" style="font-size:13px;"
+        onclick="event.stopPropagation();generateFeedback('${run.id}',this)">
+        ✨ Generate AI Feedback
+      </button>
+    </div>`;
+  } else {
+    expandContent = `<p style="font-size:13px;color:var(--text-sec);padding:8px 0 2px;">No coaching feedback for this run.</p>`;
+  }
+
+  const mapPanel = run.route_polyline
+    ? `<div class="run-item-map" id="map-${run.id}"></div>`
     : "";
 
+  const withMap = run.route_polyline ? "run-item-with-route" : "";
+
+  const actions = run.strava_activity_id ? "" : `
+    <div class="run-actions">
+      <button class="run-action-btn" onclick="event.stopPropagation();openEditModal('${run.id}')">Edit</button>
+      <button class="run-action-btn run-action-danger" onclick="event.stopPropagation();confirmDelete('${run.id}')">Delete</button>
+    </div>`;
+
   return `
-    <div class="run-item" id="run-card-${run.id}">
-      <div class="run-item-header">
-        <span class="run-date">${formatDate(run.date)}</span>
-        <div class="run-stats">
-          <div class="run-stat">
-            <span class="run-stat-value">${formatDistance(run.distance_km)} km</span>
-            <span class="run-stat-label">Distance</span>
+    <div class="run-item ${withMap}" id="run-card-${run.id}" onclick="toggleRunExpand(this)" style="cursor:pointer;">
+      <div class="run-item-body">
+        <div class="run-item-header">
+          <span class="run-date">${formatDate(run.date)}${stravaTag}</span>
+          <div class="run-stats">
+            <div class="run-stat">
+              <span class="run-stat-value">${formatDistance(run.distance_km)} km</span>
+              <span class="run-stat-label">Distance</span>
+            </div>
+            <div class="run-stat">
+              <span class="run-stat-value">${formatPace(run.pace_per_km)}</span>
+              <span class="run-stat-label">Pace /km</span>
+            </div>
+            <div class="run-stat">
+              <span class="run-stat-value">${durStr}</span>
+              <span class="run-stat-label">Duration</span>
+            </div>
+            <div class="run-stat">
+              <span class="run-stat-value">${hrStr}</span>
+              <span class="run-stat-label">Heart Rate</span>
+            </div>
           </div>
-          <div class="run-stat">
-            <span class="run-stat-value">${formatPace(run.pace_per_km)}</span>
-            <span class="run-stat-label">Pace /km</span>
-          </div>
-          <div class="run-stat">
-            <span class="run-stat-value">${durStr}</span>
-            <span class="run-stat-label">Duration</span>
-          </div>
-          <div class="run-stat">
-            <span class="run-stat-value">${hrStr}</span>
-            <span class="run-stat-label">Heart Rate</span>
-          </div>
+          <span class="effort-badge ${cls}">${effort}</span>
+          ${actions}
         </div>
-        <span class="effort-badge ${cls}">${effort}</span>
-        <div class="run-actions">
-          <button class="run-action-btn" onclick="openEditModal('${run.id}')">Edit</button>
-          <button class="run-action-btn run-action-danger" onclick="confirmDelete('${run.id}')">Delete</button>
-        </div>
+        ${run.notes ? `<p class="run-notes">${run.notes}</p>` : ""}
+        <div class="run-expandable"><div>${expandContent}</div></div>
       </div>
-      ${run.notes ? `<p style="font-size:13px;color:var(--text-sec);margin-top:8px;">${run.notes}</p>` : ""}
-      ${feedbackSection}
+      ${mapPanel}
     </div>
   `;
+}
+
+// ── Route maps ────────────────────────────────────────────────
+const _routeMaps = {};
+
+function decodePolyline(encoded) {
+  let index = 0, lat = 0, lng = 0, coords = [];
+  while (index < encoded.length) {
+    let shift = 0, result = 0, byte;
+    do { byte = encoded.charCodeAt(index++) - 63; result |= (byte & 0x1f) << shift; shift += 5; } while (byte >= 0x20);
+    lat += (result & 1) ? ~(result >> 1) : result >> 1;
+    shift = 0; result = 0;
+    do { byte = encoded.charCodeAt(index++) - 63; result |= (byte & 0x1f) << shift; shift += 5; } while (byte >= 0x20);
+    lng += (result & 1) ? ~(result >> 1) : result >> 1;
+    coords.push([lat / 1e5, lng / 1e5]);
+  }
+  return coords;
+}
+
+function initRouteMaps(runs) {
+  requestAnimationFrame(() => {
+    runs.filter(r => r.route_polyline).forEach(run => {
+      const container = document.getElementById(`map-${run.id}`);
+      if (!container || _routeMaps[run.id]) return;
+
+      const coords = decodePolyline(run.route_polyline);
+      if (coords.length < 2) return;
+
+      const map = L.map(container, {
+        zoomControl: false, attributionControl: false,
+        dragging: false, scrollWheelZoom: false,
+        touchZoom: false, doubleClickZoom: false, boxZoom: false, keyboard: false,
+      });
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 18 }).addTo(map);
+
+      const line = L.polyline(coords, { color: "#F97316", weight: 3.5, opacity: 0.95 }).addTo(map);
+      L.circleMarker(coords[0],               { radius: 6, color: "#fff", weight: 2, fillColor: "#22C55E", fillOpacity: 1 }).addTo(map);
+      L.circleMarker(coords[coords.length-1], { radius: 6, color: "#fff", weight: 2, fillColor: "#EF4444", fillOpacity: 1 }).addTo(map);
+
+      map.fitBounds(line.getBounds(), { padding: [14, 14] });
+      _routeMaps[run.id] = map;
+    });
+  });
 }
 
 
@@ -279,6 +436,10 @@ function showAchievementToast(a) {
   container.appendChild(toast);
   // Auto-remove after 6 seconds
   setTimeout(() => toast.remove(), 6000);
+}
+
+function toggleRunExpand(card) {
+  card.classList.toggle("run-expanded");
 }
 
 function toggleFeedback(btn) {

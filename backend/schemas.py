@@ -26,8 +26,19 @@ class UserResponse(BaseModel):
     name: str
     weight_kg: Optional[float] = None
     max_hr: Optional[int] = None
+    age: Optional[int] = None
+    height_cm: Optional[float] = None
+    avatar_url: Optional[str] = None
     created_at: datetime
     onboarding_complete: bool = False
+
+
+class ProfileUpdate(BaseModel):
+    name: Optional[str] = None
+    age: Optional[int] = None
+    height_cm: Optional[float] = None
+    weight_kg: Optional[float] = None
+    max_hr: Optional[int] = None
 
 
 class Token(BaseModel):
@@ -70,6 +81,8 @@ class RunResponse(BaseModel):
     notes: Optional[str] = None
     ai_feedback: Optional[str] = None
     created_at: datetime
+    strava_activity_id: Optional[int] = None
+    route_polyline: Optional[str] = None
     new_achievements: Optional[List] = None
     plan_adjusted: Optional[bool] = None
     plan_adjustment_reason: Optional[str] = None

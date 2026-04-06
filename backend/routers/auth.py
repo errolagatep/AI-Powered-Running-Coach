@@ -128,10 +128,8 @@ def google_callback(code: str = None, error: str = None, supabase: Client = Depe
             }).execute()
             user_raw = result.data[0]
 
-    user = _with_onboarding_flag(user_raw, supabase)
-    jwt_token = create_access_token({"sub": user["id"]})
-    redirect_page = "/dashboard.html" if user["onboarding_complete"] else "/onboarding.html"
-    return RedirectResponse(url=f"{redirect_page}?token={jwt_token}")
+    jwt_token = create_access_token({"sub": user_raw["id"]})
+    return RedirectResponse(url=f"/oauth-callback.html?token={jwt_token}")
 
 
 @router.get("/me", response_model=UserResponse)

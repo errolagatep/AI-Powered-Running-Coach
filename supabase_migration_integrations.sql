@@ -21,3 +21,7 @@ CREATE TABLE IF NOT EXISTS strava_tokens (
 -- 3. Track which run_logs came from Strava (prevents duplicate imports)
 ALTER TABLE run_logs
   ADD COLUMN IF NOT EXISTS strava_activity_id BIGINT UNIQUE;
+
+-- 4. Store encoded route polyline for Strava-imported runs
+ALTER TABLE run_logs
+  ADD COLUMN IF NOT EXISTS route_polyline TEXT;

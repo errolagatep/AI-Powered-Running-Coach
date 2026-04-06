@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Dashboard — Takbo Running Coach</title>
   <link rel="stylesheet" href="/css/style.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 </head>
 <body>
 
@@ -19,6 +20,7 @@
   <ul class="navbar-nav">
     <li><a href="/dashboard.html" class="active">Dashboard</a></li>
     <li><a href="/log_run.html">Log Run</a></li>
+    <li><a href="/runs.html">Runs</a></li>
     <li><a href="/training_plan.html">Training Plan</a></li>
     <li><a href="/progress.html">Progress</a></li>
     <li><a href="/achievements.html">Achievements</a></li>
@@ -85,6 +87,9 @@
 
   <!-- Achievement toast container -->
   <div id="toast-container"></div>
+
+  <!-- Today's Workout -->
+  <div id="today-workout" class="hidden" style="margin-bottom:28px;"></div>
 
   <!-- Recent Runs -->
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
@@ -180,6 +185,7 @@
   </div>
 </div>
 
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="/js/api.js"></script>
 <script src="/js/auth.js"></script>
 <script src="/js/integrations.js"></script>

@@ -189,10 +189,14 @@ def generate_run_feedback(
 
     if user_profile:
         profile = []
+        if user_profile.get("age"):
+            profile.append(f"- Age: {user_profile['age']} years")
+        if user_profile.get("height_cm"):
+            profile.append(f"- Height: {user_profile['height_cm']:.0f} cm")
+        if user_profile.get("weight_kg"):
+            profile.append(f"- Weight: {user_profile['weight_kg']:.1f} kg")
         if user_profile.get("max_hr"):
             profile.append(f"- Max HR: {user_profile['max_hr']} bpm")
-        if user_profile.get("weight_kg"):
-            profile.append(f"- Weight: {user_profile['weight_kg']} kg")
         if profile:
             parts.append("\n## Athlete Profile\n" + "\n".join(profile))
 

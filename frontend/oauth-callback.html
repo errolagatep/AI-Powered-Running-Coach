@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Signing in…</title>
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+<div class="auth-page">
+  <div class="auth-card" style="text-align:center;">
+    <div style="font-size:48px;margin-bottom:16px;">🏃</div>
+    <h2 style="font-size:18px;font-weight:700;margin-bottom:8px;">Signing you in…</h2>
+    <p style="color:var(--text-sec);font-size:14px;" id="msg">Please wait</p>
+  </div>
+</div>
+
+<script>
+(async function () {
+  const params = new URLSearchParams(window.location.search);
+  const token = params.get("token");
+
+  if (!token) {
+    window.location.href = "/index.html?google=error";
+    return;
+  }
+
+  localStorage.setItem("token", token);
+
+  try {
+    const res = await fetch("/api/auth/me", {
+      headers: { "Authorization": "Bearer " + token }
+    });
+    if (!res.ok) throw new Error("auth failed");
+    const user = await res.json();
+    localStorage.setItem("user", JSON.stringify(user));
+    window.location.href = user.onboarding_complete ? "/dashboard.html" : "/onboarding.html";
+  } catch (e) {
+    document.getElementById("msg").textContent = "Sign-in failed. Redirecting…";
+    setTimeout(() => { window.location.href = "/index.html?google=error"; }, 1500);
+  }
+})();
+</script>
+</body>
+</html>

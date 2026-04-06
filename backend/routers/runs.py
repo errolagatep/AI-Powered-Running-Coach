@@ -226,7 +226,12 @@ def log_run(
         run=run,
         recent_runs=recent.data,
         goal=_latest_goal(current_user["id"], supabase),
-        user_profile={"max_hr": current_user.get("max_hr"), "weight_kg": current_user.get("weight_kg")},
+        user_profile={
+            "max_hr":    current_user.get("max_hr"),
+            "weight_kg": current_user.get("weight_kg"),
+            "age":       current_user.get("age"),
+            "height_cm": current_user.get("height_cm"),
+        },
         assessment=assessment,
     )
 
@@ -346,7 +351,12 @@ def regenerate_feedback(
         run=run,
         recent_runs=recent.data,
         goal=_latest_goal(current_user["id"], supabase),
-        user_profile={"max_hr": current_user.get("max_hr"), "weight_kg": current_user.get("weight_kg")},
+        user_profile={
+            "max_hr":    current_user.get("max_hr"),
+            "weight_kg": current_user.get("weight_kg"),
+            "age":       current_user.get("age"),
+            "height_cm": current_user.get("height_cm"),
+        },
         assessment=assessment,
     )
 

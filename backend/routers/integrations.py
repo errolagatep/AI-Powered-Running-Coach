@@ -206,6 +206,8 @@ def strava_sync(
 
         run_date = activity["start_date"][:10]  # ISO date, strip time
 
+        route_polyline = activity.get("map", {}).get("summary_polyline") or None
+
         supabase.table("run_logs").insert({
             "user_id": current_user["id"],
             "date": run_date,
@@ -216,6 +218,7 @@ def strava_sync(
             "effort_level": effort_level,
             "notes": f"Imported from Strava: {activity.get('name', 'Run')}",
             "strava_activity_id": strava_id,
+            "route_polyline": route_polyline,
         }).execute()
         imported += 1
 
