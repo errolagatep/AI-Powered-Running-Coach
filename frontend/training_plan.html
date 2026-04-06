@@ -16,6 +16,7 @@
       <span class="navbar-brand-tagline">Running Coach</span>
     </span>
   </a>
+  <input type="checkbox" id="nav-toggle" class="nav-toggle-input" />
   <ul class="navbar-nav">
     <li><a href="/dashboard.html">Dashboard</a></li>
     <li><a href="/log_run.html">Log Run</a></li>
@@ -25,20 +26,25 @@
     <li><a href="/achievements.html">Achievements</a></li>
   </ul>
   <div class="navbar-actions">
-    <span class="navbar-user" id="navbar-user"></span>
-    <button class="btn btn-secondary" id="logout-btn" style="padding:6px 12px;font-size:13px;">Sign out</button>
+    <a href="/profile.html" class="navbar-user-link" id="navbar-user"></a>
+    <button class="btn btn-secondary btn-logout" id="logout-btn">Sign out</button>
   </div>
+  <label for="nav-toggle" class="nav-hamburger" aria-label="Toggle navigation">
+    <span></span><span></span><span></span>
+  </label>
 </nav>
 
 <div class="container">
-  <div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;">
-    <div>
-      <h1>Weekly Training Plan</h1>
-      <p>AI-generated plan based on your training history and goals</p>
-    </div>
-    <div style="display:flex;gap:10px;flex-wrap:wrap;">
-      <button class="btn btn-secondary" id="recalibrate-btn" onclick="openRecalibrateModal()">🔄 Recalibrate from Efforts</button>
-      <button class="btn btn-primary" id="generate-btn" onclick="generatePlan()">✨ Generate New Plan</button>
+  <div class="page-header">
+    <div class="section-header" style="margin-bottom:4px;align-items:flex-start;">
+      <div>
+        <h1 style="font-size:26px;font-weight:800;letter-spacing:-.4px;">Weekly Training Plan</h1>
+        <p style="color:var(--text-sec);margin-top:4px;">AI-generated plan based on your training history and goals</p>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;flex-shrink:0;">
+        <button class="btn btn-secondary" id="recalibrate-btn" onclick="openRecalibrateModal()">🔄 Recalibrate from Efforts</button>
+        <button class="btn btn-primary" id="generate-btn" onclick="generatePlan()">✨ Generate New Plan</button>
+      </div>
     </div>
   </div>
 
@@ -100,6 +106,17 @@
   </div>
 </div>
 
+<!-- ── Run detail modal ── -->
+<div id="run-detail-modal" class="modal-backdrop hidden" onclick="closeRunDetailModal(event)">
+  <div class="modal-card" style="max-width:520px;" role="dialog" aria-modal="true">
+    <div class="modal-header">
+      <h3 class="modal-title" id="run-detail-date">Run Details</h3>
+      <button class="modal-close" onclick="closeRunDetailModal()">&times;</button>
+    </div>
+    <div style="padding:20px 24px 24px;" id="run-detail-body"></div>
+  </div>
+</div>
+
 <!-- ── Recalibrate confirmation modal ── -->
 <div id="recalibrate-modal" class="modal-backdrop hidden" onclick="closeRecalibrateModal(event)">
   <div class="modal-card" style="max-width:440px;" role="dialog" aria-modal="true">
@@ -118,6 +135,37 @@
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeRecalibrateModal()">Cancel</button>
       <button class="btn btn-primary" id="recalibrate-confirm-btn" onclick="recalibratePlan()">Recalibrate plan</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Reschedule workout modal ── -->
+<div id="reschedule-modal" class="modal-backdrop hidden" onclick="closeRescheduleModal(event)">
+  <div class="modal-card" style="max-width:440px;" role="dialog" aria-modal="true">
+    <div class="modal-header">
+      <h3 class="modal-title">📅 Reschedule Workout</h3>
+      <button class="modal-close" onclick="closeRescheduleModal()">&times;</button>
+    </div>
+    <div style="padding:0 24px 8px;">
+      <p style="font-size:14px;color:var(--text);line-height:1.7;margin-bottom:16px;">
+        Moving <strong id="reschedule-source-label"></strong>'s workout to another day.
+        The two days will swap their full workout content.
+      </p>
+      <div class="form-group">
+        <label for="reschedule-target-day">Swap with</label>
+        <select class="form-control" id="reschedule-target-day"></select>
+      </div>
+      <div class="form-group">
+        <label for="reschedule-note">Reason <span style="opacity:.5;font-weight:400;text-transform:none;">optional</span></label>
+        <input class="form-control" type="text" id="reschedule-note"
+               placeholder="e.g. Work event, travel day…" maxlength="200" />
+        <div class="form-hint">Short note shown on the rescheduled card.</div>
+      </div>
+      <div id="reschedule-error" class="alert alert-error hidden" style="margin:0 0 12px;"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeRescheduleModal()">Cancel</button>
+      <button class="btn btn-primary" id="reschedule-confirm-btn" onclick="confirmReschedule()">Confirm swap</button>
     </div>
   </div>
 </div>

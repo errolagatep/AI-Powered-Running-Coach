@@ -17,6 +17,7 @@
       <span class="navbar-brand-tagline">Running Coach</span>
     </span>
   </a>
+  <input type="checkbox" id="nav-toggle" class="nav-toggle-input" />
   <ul class="navbar-nav">
     <li><a href="/dashboard.html">Dashboard</a></li>
     <li><a href="/log_run.html">Log Run</a></li>
@@ -26,18 +27,21 @@
     <li><a href="/achievements.html">Achievements</a></li>
   </ul>
   <div class="navbar-actions">
-    <span class="navbar-user" id="navbar-user"></span>
-    <button class="btn btn-secondary" id="logout-btn" style="padding:6px 12px;font-size:13px;">Sign out</button>
+    <a href="/profile.html" class="navbar-user-link" id="navbar-user"></a>
+    <button class="btn btn-secondary btn-logout" id="logout-btn">Sign out</button>
   </div>
+  <label for="nav-toggle" class="nav-hamburger" aria-label="Toggle navigation">
+    <span></span><span></span><span></span>
+  </label>
 </nav>
 
 <div class="container">
-  <div class="page-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
-    <div>
-      <h1>All Runs</h1>
-      <p>Your complete running history</p>
+  <div class="page-header">
+    <div class="section-header" style="margin-bottom:4px;">
+      <h1 style="font-size:26px;font-weight:800;letter-spacing:-.4px;">All Runs</h1>
+      <a href="/log_run.html" class="btn btn-primary">+ Log a Run</a>
     </div>
-    <a href="/log_run.html" class="btn btn-primary">+ Log a Run</a>
+    <p style="color:var(--text-sec);margin-top:0;">Your complete running history</p>
   </div>
 
   <!-- Summary stats -->

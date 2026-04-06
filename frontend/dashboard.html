@@ -17,6 +17,7 @@
       <span class="navbar-brand-tagline">Running Coach</span>
     </span>
   </a>
+  <input type="checkbox" id="nav-toggle" class="nav-toggle-input" />
   <ul class="navbar-nav">
     <li><a href="/dashboard.html" class="active">Dashboard</a></li>
     <li><a href="/log_run.html">Log Run</a></li>
@@ -26,9 +27,12 @@
     <li><a href="/achievements.html">Achievements</a></li>
   </ul>
   <div class="navbar-actions">
-    <span class="navbar-user" id="navbar-user"></span>
-    <button class="btn btn-secondary" id="logout-btn" style="padding:6px 12px;font-size:13px;">Sign out</button>
+    <a href="/profile.html" class="navbar-user-link" id="navbar-user"></a>
+    <button class="btn btn-secondary btn-logout" id="logout-btn">Sign out</button>
   </div>
+  <label for="nav-toggle" class="nav-hamburger" aria-label="Toggle navigation">
+    <span></span><span></span><span></span>
+  </label>
 </nav>
 
 <div class="container">
@@ -49,33 +53,39 @@
 
   <!-- Stats -->
   <div class="stats-grid">
-    <div class="stat-card">
+    <div class="stat-card stat-card--blue">
+      <span class="stat-card-icon">📅</span>
       <div class="stat-label">This Week</div>
       <div class="stat-value" id="stat-week-km">—</div>
       <div class="stat-unit">kilometers</div>
     </div>
-    <div class="stat-card">
+    <div class="stat-card stat-card--green">
+      <span class="stat-card-icon">🏃</span>
       <div class="stat-label">Runs This Week</div>
       <div class="stat-value" id="stat-week-runs">—</div>
       <div class="stat-unit">sessions</div>
     </div>
-    <div class="stat-card">
+    <div class="stat-card stat-card--orange">
+      <span class="stat-card-icon">⚡</span>
       <div class="stat-label">Avg Pace (7 runs)</div>
       <div class="stat-value" id="stat-avg-pace">—</div>
       <div class="stat-unit">min/km</div>
     </div>
-    <div class="stat-card">
+    <div class="stat-card stat-card--purple">
+      <span class="stat-card-icon">🏆</span>
       <div class="stat-label">Total Runs</div>
       <div class="stat-value" id="stat-total-runs">—</div>
       <div class="stat-unit">all time</div>
     </div>
     <!-- Gamification cards -->
     <div class="stat-card streak-stat-card" id="streak-stat-card" style="display:none;">
-      <div class="stat-label">🔥 Streak</div>
+      <span class="stat-card-icon">🔥</span>
+      <div class="stat-label">Streak</div>
       <div class="stat-value" id="stat-streak">0</div>
       <div class="stat-unit">days in a row</div>
     </div>
     <div class="stat-card level-stat-card" id="level-stat-card" style="display:none;">
+      <span class="stat-card-icon">⭐</span>
       <div class="stat-label">Level</div>
       <div class="stat-value level-badge-large" id="stat-level">1</div>
       <div class="xp-bar-wrap" style="margin-top:8px;">
@@ -92,8 +102,8 @@
   <div id="today-workout" class="hidden" style="margin-bottom:28px;"></div>
 
   <!-- Recent Runs -->
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-    <h2 style="font-size:17px;font-weight:600;">Recent Runs</h2>
+  <div class="section-header">
+    <h2>Recent Runs</h2>
     <a href="/log_run.html" class="btn btn-primary">+ Log a Run</a>
   </div>
 
@@ -109,17 +119,17 @@
   </div>
 
   <!-- Strava Integration -->
-  <div style="margin-top:32px;border-top:1px solid var(--border);padding-top:24px;">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-      <div style="display:flex;align-items:center;gap:10px;">
+  <div class="strava-section">
+    <div class="strava-section-header">
+      <div class="strava-section-brand">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="#FC4C02" xmlns="http://www.w3.org/2000/svg"><path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.517-5.592L5.764 0H2.81l7.517 14.728 2.089-4.116-2.029-4z"/></svg>
-        <h3 style="font-size:15px;font-weight:600;margin:0;">Strava</h3>
+        <h3>Strava</h3>
         <span id="strava-badge" class="hidden" style="background:#FC4C02;color:#fff;font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px;">Connected</span>
       </div>
-      <div style="display:flex;gap:8px;">
-        <button id="strava-sync-btn" class="btn btn-secondary hidden" onclick="stravaSync()" style="padding:6px 12px;font-size:13px;">Sync Runs</button>
-        <button id="strava-connect-btn" class="btn btn-secondary" onclick="stravaConnect()" style="padding:6px 12px;font-size:13px;">Connect Strava</button>
-        <button id="strava-disconnect-btn" class="btn btn-secondary hidden" onclick="stravaDisconnect()" style="padding:6px 12px;font-size:13px;color:#e53e3e;">Disconnect</button>
+      <div class="strava-section-actions">
+        <button id="strava-sync-btn" class="btn btn-secondary btn-logout hidden" onclick="stravaSync()">Sync Runs</button>
+        <button id="strava-connect-btn" class="btn btn-secondary btn-logout" onclick="stravaConnect()">Connect Strava</button>
+        <button id="strava-disconnect-btn" class="btn btn-secondary btn-logout hidden" onclick="stravaDisconnect()" style="color:#e53e3e;">Disconnect</button>
       </div>
     </div>
     <p id="strava-status-msg" style="font-size:13px;color:var(--text-sec);margin:0;">Connect Strava to automatically import your runs.</p>
@@ -166,7 +176,7 @@
         <label>Effort: <span id="edit-effort-display" style="color:var(--accent);font-weight:700;">5</span>/10</label>
         <div class="slider-container" style="margin-top:8px;">
           <span style="font-size:12px;color:var(--text-sec);">Easy</span>
-          <input type="range" id="edit-effort" min="1" max="10" value="5"
+          <input type="range" class="effort-range" id="edit-effort" min="1" max="10" value="5"
                  oninput="document.getElementById('edit-effort-display').textContent=this.value" />
           <span style="font-size:12px;color:var(--text-sec);">Max</span>
         </div>

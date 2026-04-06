@@ -963,6 +963,105 @@ input[type="range"]::-webkit-slider-thumb {
   line-height: 1.5;
 }
 
+/* ── Completed workout card ───────────────────────────────────────────────── */
+.workout-card.completed {
+  border-color: rgba(34,197,94,0.5);
+  cursor: pointer;
+}
+
+.workout-card.completed .workout-header {
+  background: rgba(34,197,94,0.08);
+  border-bottom-color: rgba(34,197,94,0.2);
+}
+
+.workout-completed-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 9px 12px;
+  background: rgba(34,197,94,0.1);
+  border: 1px solid rgba(34,197,94,0.25);
+  border-radius: 8px;
+}
+
+.workout-completed-msg {
+  font-size: 12px;
+  font-weight: 600;
+  color: #16a34a;
+  line-height: 1.4;
+}
+
+.workout-completed-link {
+  font-size: 11px;
+  font-weight: 700;
+  color: #16a34a;
+  white-space: nowrap;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* ── Run detail modal ─────────────────────────────────────────────────────── */
+.run-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.run-detail-stat {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 14px;
+}
+
+.run-detail-stat-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-sec);
+  margin-bottom: 3px;
+}
+
+.run-detail-stat-value {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.run-detail-stat-unit {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-sec);
+  margin-left: 2px;
+}
+
+.ai-feedback-box {
+  background: linear-gradient(135deg, rgba(139,92,246,0.06) 0%, rgba(59,130,246,0.06) 100%);
+  border: 1px solid rgba(139,92,246,0.2);
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+
+.ai-feedback-label {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--purple);
+  margin-bottom: 8px;
+}
+
+.ai-feedback-text {
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.65;
+  white-space: pre-wrap;
+}
+
 /* ── Charts ───────────────────────────────────────────────────────────────── */
 .chart-card {
   background: var(--card);
@@ -1115,8 +1214,8 @@ input[type="range"]::-webkit-slider-thumb {
   .two-col  { grid-template-columns: 1fr; }
   .stats-grid { grid-template-columns: 1fr 1fr; }
   .plan-grid { grid-template-columns: 1fr; }
-  .navbar-nav { display: none; }
 }
+
 
 /* ═══════════════════════════════════════════════════════════════════════════
    GENERATION LOADING OVERLAY
@@ -1811,3 +1910,272 @@ input[type="range"]::-webkit-slider-thumb {
   transition: background .15s, border-color .15s;
 }
 .pab-cta:hover { background: #EFF6FF; border-color: #60A5FA; text-decoration: none; }
+
+/* ── Rescheduled workout card ─────────────────────────────────────────────── */
+.workout-card.rescheduled { border-color: rgba(59,130,246,0.45); }
+.workout-card.rescheduled .workout-header {
+  background: rgba(59,130,246,0.07);
+  border-bottom-color: rgba(59,130,246,0.2);
+}
+.workout-rescheduled-banner {
+  margin-top: 10px;
+  padding: 7px 10px;
+  background: rgba(59,130,246,0.08);
+  border: 1px solid rgba(59,130,246,0.2);
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #2563eb;
+  line-height: 1.4;
+}
+
+/* ── Reschedule button ────────────────────────────────────────────────────── */
+.workout-card-footer {
+  padding: 10px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+}
+.btn-reschedule {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-sec);
+  background: none;
+  border: 1.5px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 10px;
+  cursor: pointer;
+  transition: color .15s, border-color .15s, background .15s;
+}
+.btn-reschedule:hover {
+  color: #2563eb;
+  border-color: rgba(59,130,246,0.45);
+  background: rgba(59,130,246,0.06);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   UI/UX ENHANCEMENTS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Smooth scroll + page entrance ────────────────────────────────────────── */
+html { scroll-behavior: smooth; }
+
+@keyframes pageFadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.container { animation: pageFadeIn 0.28s ease forwards; }
+
+/* ── Custom scrollbar (webkit) ─────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #bcc5d3; }
+
+/* ── Stat card color variants ──────────────────────────────────────────────── */
+.stat-card-icon {
+  font-size: 20px;
+  display: block;
+  margin-bottom: 8px;
+  line-height: 1;
+}
+
+.stat-card--blue   { border-top: 3px solid var(--blue); }
+.stat-card--green  { border-top: 3px solid var(--accent2); }
+.stat-card--orange { border-top: 3px solid var(--accent); }
+.stat-card--purple { border-top: 3px solid var(--purple); }
+
+.stat-card--blue   .stat-value { color: var(--blue); }
+.stat-card--green  .stat-value { color: var(--accent2); }
+.stat-card--orange .stat-value { color: var(--accent); }
+.stat-card--purple .stat-value { color: var(--purple); }
+
+/* ── Section header utility ────────────────────────────────────────────────── */
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.section-header h2 {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* ── Strava section card ───────────────────────────────────────────────────── */
+.strava-section {
+  margin-top: 32px;
+  border-top: 1px solid var(--border);
+  padding-top: 24px;
+}
+.strava-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.strava-section-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.strava-section-brand h3 {
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0;
+}
+.strava-section-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ── Logout button (replaces scattered inline styles) ─────────────────────── */
+.btn-logout {
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
+/* ── Effort range gradient track ───────────────────────────────────────────── */
+.effort-range {
+  background: linear-gradient(
+    to right,
+    #22C55E 0%, #22C55E 30%,
+    #F59E0B 30%, #F59E0B 65%,
+    #EF4444 65%, #EF4444 100%
+  ) !important;
+}
+
+/* ── Today's workout card highlight ───────────────────────────────────────── */
+.workout-card.today-card {
+  border: 2px solid var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-glow), var(--shadow-lg);
+}
+.workout-card.today-card .workout-header {
+  background: var(--accent-glow);
+  border-bottom-color: rgba(249,115,22,0.2);
+}
+
+/* ── Achievement locked — slightly less harsh ──────────────────────────────── */
+.achievement-card.locked {
+  opacity: 0.5;
+  filter: grayscale(0.7);
+}
+
+/* ── Mobile navigation (hamburger) ────────────────────────────────────────── */
+.nav-toggle-input { display: none; }
+
+.nav-hamburger {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  transition: background 0.15s;
+  flex-shrink: 0;
+  margin-left: 8px;
+}
+.nav-hamburger:hover { background: var(--bg); }
+
+.nav-hamburger span {
+  display: block;
+  width: 22px;
+  height: 2px;
+  background: var(--text);
+  border-radius: 2px;
+  transition: transform 0.25s, opacity 0.25s;
+}
+
+/* Hamburger → X when open */
+#nav-toggle:checked ~ .nav-hamburger span:nth-child(1) {
+  transform: translateY(7px) rotate(45deg);
+}
+#nav-toggle:checked ~ .nav-hamburger span:nth-child(2) {
+  opacity: 0;
+  transform: scaleX(0);
+}
+#nav-toggle:checked ~ .nav-hamburger span:nth-child(3) {
+  transform: translateY(-7px) rotate(-45deg);
+}
+
+@media (max-width: 768px) {
+  .navbar {
+    flex-wrap: wrap;
+    height: auto;
+    padding: 0 16px;
+    position: sticky;
+    top: 0;
+  }
+
+  .navbar-brand {
+    padding: 12px 0;
+    margin-right: 0;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .navbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 0;
+    order: 2;
+  }
+
+  /* Hide username on small screens — keep only logout */
+  .navbar-user,
+  .navbar-user-link {
+    display: none;
+  }
+
+  .nav-hamburger {
+    display: flex;
+    order: 3;
+    align-self: center;
+  }
+
+  /* Nav slides in below the top bar row */
+  .navbar-nav {
+    display: none;
+    width: 100%;
+    flex-direction: column;
+    order: 4;
+    gap: 2px;
+    padding: 8px 0 12px;
+    border-top: 1px solid var(--border);
+    animation: none;
+  }
+
+  #nav-toggle:checked ~ .navbar-nav {
+    display: flex;
+  }
+
+  .navbar-nav li { width: 100%; }
+  .navbar-nav a {
+    padding: 10px 12px;
+    border-radius: 8px;
+    display: block;
+    width: 100%;
+  }
+
+  .container { padding: 20px 16px; }
+  .page-header h1 { font-size: 22px; }
+  .stats-grid { grid-template-columns: 1fr 1fr; }
+  .section-header { margin-bottom: 12px; }
+}
+
+@media (max-width: 480px) {
+  .stats-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .stat-card { padding: 14px 16px; }
+  .stat-value { font-size: 26px; }
+}
+

@@ -1,4 +1,8 @@
 let currentGoalId = null;
+let currentPlanId = null;    // ID of the currently loaded plan
+let currentPlanData = null;  // Full plan response object
+let weekRunsMap = {};        // date-string → run object for this plan's week
+let weekRunsById = {};       // run.id → run object (safe onclick lookup)
 
 document.addEventListener("DOMContentLoaded", async () => {
   if (!requireAuth()) return;
@@ -89,9 +93,48 @@ async function deleteGoal() {
 async function loadPlan() {
   try {
     const data = await api.get("/plans/current");
-    if (data) renderPlan(data);
+    if (data) {
+      currentPlanId = data.id;
+      currentPlanData = data;
+      await loadWeekRuns(data.week_start);
+      renderPlan(data);
+    }
   } catch (err) {
     console.error("Failed to load plan:", err);
+  }
+}
+
+// Parse "YYYY-MM-DD..." as a local-date number (days since epoch) to avoid UTC shift
+function dateStrToLocalKey(dateStr) {
+  return dateStr.slice(0, 10); // just keep "YYYY-MM-DD"
+}
+
+function addDaysToDateKey(dateKey, days) {
+  const [y, m, d] = dateKey.split("-").map(Number);
+  const dt = new Date(y, m - 1, d + days);
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+}
+
+async function loadWeekRuns(weekStart) {
+  try {
+    // Fetch recent runs — enough to cover this week's 7 days
+    const runs = await api.get("/runs/?limit=14");
+    weekRunsMap = {};
+    if (!runs || !runs.length) return;
+
+    // Use the date portion only to avoid UTC/local timezone mismatch
+    const mondayKey = dateStrToLocalKey(weekStart);
+    const sundayKey = addDaysToDateKey(mondayKey, 6);
+
+    for (const run of runs) {
+      const key = dateStrToLocalKey(run.date);
+      if (key >= mondayKey && key <= sundayKey) {
+        weekRunsMap[key] = run;
+        weekRunsById[run.id] = run;
+      }
+    }
+  } catch (err) {
+    console.error("Failed to load week runs:", err);
   }
 }
 
@@ -106,6 +149,9 @@ async function generatePlan() {
 
   try {
     const data = await api.post("/plans/generate", {});
+    currentPlanId = data.id;
+    currentPlanData = data;
+    await loadWeekRuns(data.week_start);
     renderPlan(data);
   } catch (err) {
     const alertEl = document.getElementById("alert");
@@ -136,15 +182,23 @@ function renderPlan(data) {
     `<h3>${plan.focus || "Training Week"}</h3>
      <p>${plan.week_summary || ""}</p>`;
 
-  // Days grid
+  // Days grid — match each plan day to a logged run this week
+  const DAY_OFFSET = { Monday: 0, Tuesday: 1, Wednesday: 2, Thursday: 3, Friday: 4, Saturday: 5, Sunday: 6 };
+  const mondayKey = dateStrToLocalKey(data.week_start);
+
   const grid = document.getElementById("plan-grid");
-  grid.innerHTML = plan.days.map(day => workoutCard(day)).join("");
+  grid.innerHTML = plan.days.map(day => {
+    const offset = DAY_OFFSET[day.day] ?? 0;
+    const dateKey = addDaysToDateKey(mondayKey, offset);
+    const matchedRun = weekRunsMap[dateKey] || null;
+    return workoutCard(day, matchedRun);
+  }).join("");
 
   document.getElementById("plan-container").classList.remove("hidden");
   document.getElementById("plan-loading").classList.add("hidden");
 }
 
-function workoutCard(day) {
+function workoutCard(day, run) {
   const type = day.workout_type || "Easy Run";
   const badgeClass = badgeForType(type);
   const isRest = ["Rest", "Active Recovery"].includes(type);
@@ -157,8 +211,30 @@ function workoutCard(day) {
        </div>`
     : `<div class="workout-metrics"><div class="workout-metric" style="color:var(--text-sec);">Rest &amp; recover</div></div>`;
 
+  const completedBanner = run
+    ? `<div class="workout-completed-banner">
+         <span class="workout-completed-msg">✅ ${day.day} session done!</span>
+         <span class="workout-completed-link">View details →</span>
+       </div>`
+    : "";
+
+  const rescheduledBanner = day.rescheduled_from
+    ? `<div class="workout-rescheduled-banner">
+         📅 Rescheduled from ${escapeHtml(day.rescheduled_from)}${day.reschedule_note ? ` — ${escapeHtml(day.reschedule_note)}` : ""}
+       </div>`
+    : "";
+
+  const rescheduleBtn = !run && currentPlanId
+    ? `<div class="workout-card-footer">
+         <button class="btn-reschedule" onclick="event.stopPropagation();openRescheduleModal('${day.day}')">📅 Reschedule</button>
+       </div>`
+    : "";
+
+  const clickAttr = run ? `onclick="openRunDetailById('${run.id}')"` : "";
+  const cardClass = `workout-card${run ? " completed" : ""}${day.rescheduled_from ? " rescheduled" : ""}`;
+
   return `
-    <div class="workout-card">
+    <div class="${cardClass}" ${clickAttr}>
       <div class="workout-header">
         <span class="workout-day">${day.day}</span>
         <span class="workout-type-badge ${badgeClass}">${type}</span>
@@ -168,9 +244,95 @@ function workoutCard(day) {
         <div class="workout-desc">${day.description}</div>
         ${metricsHtml}
         ${day.notes ? `<div class="workout-notes">${day.notes}</div>` : ""}
+        ${rescheduledBanner}
+        ${completedBanner}
       </div>
+      ${rescheduleBtn}
     </div>
   `;
+}
+
+// ── Run detail modal ──────────────────────────────────────────
+function openRunDetailById(id) {
+  const run = weekRunsById[id];
+  if (run) openRunDetail(run);
+}
+
+function openRunDetail(run) {
+
+  const pace = run.pace_per_km;
+  const paceMin = Math.floor(pace);
+  const paceSec = Math.round((pace - paceMin) * 60).toString().padStart(2, "0");
+
+  const duration = run.duration_min;
+  const durH = Math.floor(duration / 60);
+  const durM = Math.round(duration % 60);
+  const durStr = durH > 0 ? `${durH}h ${durM}m` : `${durM} min`;
+
+  const dateStr = new Date(run.date).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+
+  const hrStat = run.heart_rate_avg
+    ? `<div class="run-detail-stat">
+         <div class="run-detail-stat-label">Avg Heart Rate</div>
+         <div class="run-detail-stat-value">${run.heart_rate_avg}<span class="run-detail-stat-unit">bpm</span></div>
+       </div>`
+    : "";
+
+  const notesStat = run.notes
+    ? `<div style="margin-bottom:16px;">
+         <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-sec);margin-bottom:6px;">Your Notes</div>
+         <div style="font-size:13px;color:var(--text);line-height:1.6;font-style:italic;">${escapeHtml(run.notes)}</div>
+       </div>`
+    : "";
+
+  const feedbackHtml = run.ai_feedback
+    ? `<div class="ai-feedback-box">
+         <div class="ai-feedback-label">🤖 Coach Feedback</div>
+         <div class="ai-feedback-text">${escapeHtml(run.ai_feedback)}</div>
+       </div>`
+    : `<div style="color:var(--text-sec);font-size:13px;">No AI feedback available for this run.</div>`;
+
+  document.getElementById("run-detail-date").textContent = dateStr;
+  document.getElementById("run-detail-body").innerHTML = `
+    <div class="run-detail-grid">
+      <div class="run-detail-stat">
+        <div class="run-detail-stat-label">Distance</div>
+        <div class="run-detail-stat-value">${run.distance_km.toFixed(2)}<span class="run-detail-stat-unit">km</span></div>
+      </div>
+      <div class="run-detail-stat">
+        <div class="run-detail-stat-label">Duration</div>
+        <div class="run-detail-stat-value">${durStr}</div>
+      </div>
+      <div class="run-detail-stat">
+        <div class="run-detail-stat-label">Avg Pace</div>
+        <div class="run-detail-stat-value">${paceMin}:${paceSec}<span class="run-detail-stat-unit">/km</span></div>
+      </div>
+      <div class="run-detail-stat">
+        <div class="run-detail-stat-label">Effort</div>
+        <div class="run-detail-stat-value">${run.effort_level}<span class="run-detail-stat-unit">/ 10</span></div>
+      </div>
+      ${hrStat}
+    </div>
+    ${notesStat}
+    ${feedbackHtml}
+  `;
+
+  document.getElementById("run-detail-modal").classList.remove("hidden");
+  document.body.style.overflow = "hidden";
+}
+
+function closeRunDetailModal(e) {
+  if (e && e.target !== document.getElementById("run-detail-modal")) return;
+  document.getElementById("run-detail-modal").classList.add("hidden");
+  document.body.style.overflow = "";
+}
+
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 // ── Recalibrate modal ─────────────────────────────────────────
@@ -201,6 +363,9 @@ async function recalibratePlan() {
 
   try {
     const data = await api.post("/plans/recalibrate", {});
+    currentPlanId = data.id;
+    currentPlanData = data;
+    await loadWeekRuns(data.week_start);
     renderPlan(data);
   } catch (err) {
     const alertEl = document.getElementById("alert");
@@ -211,6 +376,69 @@ async function recalibratePlan() {
     confirmBtn.disabled = false;
     confirmBtn.textContent = "Recalibrate plan";
     recalibrateBtn.disabled = false;
+  }
+}
+
+// ── Reschedule modal ─────────────────────────────────────────
+let _rescheduleSourceDay = null;
+
+function openRescheduleModal(sourceDay) {
+  if (!currentPlanId || !currentPlanData) return;
+  _rescheduleSourceDay = sourceDay;
+  document.getElementById("reschedule-source-label").textContent = sourceDay;
+
+  const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+  const DAY_OFFSET = { Monday: 0, Tuesday: 1, Wednesday: 2, Thursday: 3, Friday: 4, Saturday: 5, Sunday: 6 };
+  const mondayKey = dateStrToLocalKey(currentPlanData.week_start);
+
+  const select = document.getElementById("reschedule-target-day");
+  const options = DAY_NAMES.filter(d => {
+    if (d === sourceDay) return false;
+    const dateKey = addDaysToDateKey(mondayKey, DAY_OFFSET[d]);
+    return !weekRunsMap[dateKey]; // exclude days with a logged run
+  });
+  select.innerHTML = options.map(d => `<option value="${d}">${d}</option>`).join("");
+
+  document.getElementById("reschedule-note").value = "";
+  document.getElementById("reschedule-error").classList.add("hidden");
+  document.getElementById("reschedule-modal").classList.remove("hidden");
+  document.body.style.overflow = "hidden";
+}
+
+function closeRescheduleModal(e) {
+  if (e && e.target !== document.getElementById("reschedule-modal")) return;
+  document.getElementById("reschedule-modal").classList.add("hidden");
+  document.body.style.overflow = "";
+  _rescheduleSourceDay = null;
+}
+
+async function confirmReschedule() {
+  if (!currentPlanId || !_rescheduleSourceDay) return;
+  const targetDay = document.getElementById("reschedule-target-day").value;
+  const note = document.getElementById("reschedule-note").value.trim();
+  const confirmBtn = document.getElementById("reschedule-confirm-btn");
+  confirmBtn.disabled = true;
+  confirmBtn.innerHTML = '<span class="btn-spinner"></span> Saving…';
+  document.getElementById("reschedule-error").classList.add("hidden");
+
+  try {
+    const data = await api.patch(`/plans/${currentPlanId}`, {
+      source_day: _rescheduleSourceDay,
+      target_day: targetDay,
+      note: note || null,
+    });
+    currentPlanData = data;
+    document.getElementById("reschedule-modal").classList.add("hidden");
+    document.body.style.overflow = "";
+    _rescheduleSourceDay = null;
+    renderPlan(data);
+  } catch (err) {
+    const errorEl = document.getElementById("reschedule-error");
+    errorEl.textContent = err.message || "Failed to reschedule. Please try again.";
+    errorEl.classList.remove("hidden");
+  } finally {
+    confirmBtn.disabled = false;
+    confirmBtn.textContent = "Confirm swap";
   }
 }
 

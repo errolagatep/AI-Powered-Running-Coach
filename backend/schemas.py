@@ -163,3 +163,11 @@ class AchievementResponse(BaseModel):
     description: str
     icon: str
     unlocked_at: datetime
+
+
+# ── Plans ──────────────────────────────────────────────────────────────────────
+
+class PlanRescheduleRequest(BaseModel):
+    source_day: str
+    target_day: str
+    note: Optional[str] = None

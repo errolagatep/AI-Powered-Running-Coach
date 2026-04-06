@@ -6,3 +6,7 @@ __pycache__/
 .git/
 .gitignore
 *.md
+*.db
+*.sqlite
+*.sqlite3
+migrations/

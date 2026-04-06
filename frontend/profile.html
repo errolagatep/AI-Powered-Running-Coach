@@ -16,6 +16,7 @@
       <span class="navbar-brand-tagline">Running Coach</span>
     </span>
   </a>
+  <input type="checkbox" id="nav-toggle" class="nav-toggle-input" />
   <ul class="navbar-nav">
     <li><a href="/dashboard.html">Dashboard</a></li>
     <li><a href="/log_run.html">Log Run</a></li>
@@ -25,9 +26,12 @@
     <li><a href="/achievements.html">Achievements</a></li>
   </ul>
   <div class="navbar-actions">
-    <span class="navbar-user" id="navbar-user"></span>
-    <button class="btn btn-secondary" id="logout-btn" style="padding:6px 12px;font-size:13px;">Sign out</button>
+    <a href="/profile.html" class="navbar-user-link active" id="navbar-user"></a>
+    <button class="btn btn-secondary btn-logout" id="logout-btn">Sign out</button>
   </div>
+  <label for="nav-toggle" class="nav-hamburger" aria-label="Toggle navigation">
+    <span></span><span></span><span></span>
+  </label>
 </nav>
 
 <div class="container" style="max-width:640px;">

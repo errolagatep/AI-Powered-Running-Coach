@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from supabase import Client
 from datetime import datetime, timedelta
 import json
 from ..database import get_supabase
 from ..auth import get_current_user
 from ..coach import generate_weekly_plan, _fmt_pace
+from ..schemas import PlanRescheduleRequest
 
 router = APIRouter(prefix="/api/plans", tags=["plans"])
 
@@ -30,6 +31,71 @@ def get_current_plan(
         "week_start": plan["week_start"],
         "generated_at": plan["generated_at"],
         "plan": json.loads(plan["plan_json"]),
+    }
+
+
+VALID_DAYS = {"Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"}
+
+
+@router.patch("/{plan_id}")
+def reschedule_workout(
+    plan_id: str,
+    body: PlanRescheduleRequest,
+    current_user: dict = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase),
+):
+    result = (
+        supabase.table("training_plans")
+        .select("*")
+        .eq("id", plan_id)
+        .eq("user_id", current_user["id"])
+        .execute()
+    )
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    plan_row = result.data[0]
+    plan_data = json.loads(plan_row["plan_json"])
+
+    if body.source_day not in VALID_DAYS or body.target_day not in VALID_DAYS:
+        raise HTTPException(status_code=400, detail="Invalid day name")
+    if body.source_day == body.target_day:
+        raise HTTPException(status_code=400, detail="Source and target day must differ")
+
+    days = plan_data.get("days", [])
+    src_idx = next((i for i, d in enumerate(days) if d["day"] == body.source_day), None)
+    tgt_idx = next((i for i, d in enumerate(days) if d["day"] == body.target_day), None)
+    if src_idx is None or tgt_idx is None:
+        raise HTTPException(status_code=400, detail="Day not found in plan")
+
+    CONTENT_FIELDS = ["workout_type", "title", "description", "distance_km", "duration_min", "intensity", "notes"]
+    src_content = {f: days[src_idx].get(f) for f in CONTENT_FIELDS}
+    tgt_content = {f: days[tgt_idx].get(f) for f in CONTENT_FIELDS}
+
+    for f in CONTENT_FIELDS:
+        days[src_idx][f] = tgt_content[f]
+        days[tgt_idx][f] = src_content[f]
+
+    note = (body.note or "").strip()[:200] or None
+    rest_types = ("Rest", "Active Recovery", None)
+
+    days[tgt_idx]["rescheduled_from"] = body.source_day
+    days[tgt_idx]["reschedule_note"] = note
+
+    if src_content.get("workout_type") not in rest_types:
+        days[src_idx]["rescheduled_from"] = body.target_day
+        days[src_idx]["reschedule_note"] = note
+    else:
+        days[src_idx].pop("rescheduled_from", None)
+        days[src_idx].pop("reschedule_note", None)
+
+    supabase.table("training_plans").update({"plan_json": json.dumps(plan_data)}).eq("id", plan_id).execute()
+
+    return {
+        "id": plan_row["id"],
+        "week_start": plan_row["week_start"],
+        "generated_at": plan_row["generated_at"],
+        "plan": plan_data,
     }
 
 
@@ -77,7 +143,7 @@ def create_plan(
 
     result = supabase.table("training_plans").insert({
         "user_id": current_user["id"],
-        "week_start": _next_monday().isoformat(),
+        "week_start": _current_monday().isoformat(),
         "plan_json": json.dumps(plan_data),
     }).execute()
 
@@ -90,10 +156,10 @@ def create_plan(
     }
 
 
-def _next_monday() -> datetime:
+def _current_monday() -> datetime:
+    """Returns the Monday of the current UTC week (today if today is Monday)."""
     today = datetime.utcnow()
-    days_to_monday = (7 - today.weekday()) % 7 or 7
-    return (today + timedelta(days=days_to_monday)).replace(
+    return (today - timedelta(days=today.weekday())).replace(
         hour=0, minute=0, second=0, microsecond=0
     )
 
@@ -163,7 +229,7 @@ def recalibrate_plan(
 
     result = supabase.table("training_plans").insert({
         "user_id": current_user["id"],
-        "week_start": _next_monday().isoformat(),
+        "week_start": _current_monday().isoformat(),
         "plan_json": json.dumps(plan_data),
     }).execute()
 

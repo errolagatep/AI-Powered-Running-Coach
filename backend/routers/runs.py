@@ -264,7 +264,7 @@ def log_run(
             )
             supabase.table("training_plans").insert({
                 "user_id": current_user["id"],
-                "week_start": (datetime.utcnow() + timedelta(days=(7 - datetime.utcnow().weekday()) % 7 or 7))
+                "week_start": (datetime.utcnow() - timedelta(days=datetime.utcnow().weekday()))
                               .replace(hour=0, minute=0, second=0, microsecond=0).isoformat(),
                 "plan_json": json.dumps(new_plan),
             }).execute()
