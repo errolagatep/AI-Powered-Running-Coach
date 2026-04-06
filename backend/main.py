@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from .routers import auth, runs, plans, goals, progress, onboarding, gamification
+from .routers import auth, runs, plans, goals, progress, onboarding, gamification, integrations
 import os
 
 app = FastAPI(title="AI Running Coach", version="1.0.0")
@@ -21,6 +21,7 @@ app.include_router(goals.router)
 app.include_router(progress.router)
 app.include_router(onboarding.router)
 app.include_router(gamification.router)
+app.include_router(integrations.router)
 
 # Serve frontend static files at root
 frontend_dir = os.path.join(os.path.dirname(__file__), "..", "frontend")

@@ -1,3 +1,15 @@
+// Pick up JWT token injected via URL query param (Google OAuth redirect)
+(function () {
+  const params = new URLSearchParams(window.location.search);
+  const urlToken = params.get("token");
+  if (urlToken) {
+    localStorage.setItem("token", urlToken);
+    // Clean the token from the URL without a page reload
+    const clean = window.location.pathname + window.location.search.replace(/[?&]token=[^&]+/, "").replace(/^&/, "?");
+    window.history.replaceState(null, "", clean || window.location.pathname);
+  }
+})();
+
 function getToken()   { return localStorage.getItem("token"); }
 function getUser()    { return JSON.parse(localStorage.getItem("user") || "null"); }
 function isLoggedIn() { return !!getToken(); }

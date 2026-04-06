@@ -3,13 +3,19 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Dashboard — AI Running Coach</title>
+  <title>Dashboard — Takbo Running Coach</title>
   <link rel="stylesheet" href="/css/style.css" />
 </head>
 <body>
 
 <nav class="navbar">
-  <a class="navbar-brand" href="/dashboard.html">🏃 RunCoach</a>
+  <a class="navbar-brand" href="/dashboard.html">
+    <img class="navbar-logo" src="/images/logo.png" alt="Takbo" onerror="this.style.display='none';" />
+    <span class="navbar-brand-text">
+      <span class="navbar-brand-name">Takbo</span>
+      <span class="navbar-brand-tagline">Running Coach</span>
+    </span>
+  </a>
   <ul class="navbar-nav">
     <li><a href="/dashboard.html" class="active">Dashboard</a></li>
     <li><a href="/log_run.html">Log Run</a></li>
@@ -96,6 +102,24 @@
     <p>Log your first run and get AI-powered coaching feedback.</p>
     <a href="/log_run.html" class="btn btn-primary">Log Your First Run</a>
   </div>
+
+  <!-- Strava Integration -->
+  <div style="margin-top:32px;border-top:1px solid var(--border);padding-top:24px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="#FC4C02" xmlns="http://www.w3.org/2000/svg"><path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.517-5.592L5.764 0H2.81l7.517 14.728 2.089-4.116-2.029-4z"/></svg>
+        <h3 style="font-size:15px;font-weight:600;margin:0;">Strava</h3>
+        <span id="strava-badge" class="hidden" style="background:#FC4C02;color:#fff;font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px;">Connected</span>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button id="strava-sync-btn" class="btn btn-secondary hidden" onclick="stravaSync()" style="padding:6px 12px;font-size:13px;">Sync Runs</button>
+        <button id="strava-connect-btn" class="btn btn-secondary" onclick="stravaConnect()" style="padding:6px 12px;font-size:13px;">Connect Strava</button>
+        <button id="strava-disconnect-btn" class="btn btn-secondary hidden" onclick="stravaDisconnect()" style="padding:6px 12px;font-size:13px;color:#e53e3e;">Disconnect</button>
+      </div>
+    </div>
+    <p id="strava-status-msg" style="font-size:13px;color:var(--text-sec);margin:0;">Connect Strava to automatically import your runs.</p>
+    <div id="strava-sync-result" class="hidden" style="margin-top:8px;font-size:13px;color:var(--text-sec);"></div>
+  </div>
 </div>
 
 <!-- ── Edit Run Modal ── -->
@@ -158,6 +182,7 @@
 
 <script src="/js/api.js"></script>
 <script src="/js/auth.js"></script>
+<script src="/js/integrations.js"></script>
 <script src="/js/dashboard.js"></script>
 </body>
 </html>

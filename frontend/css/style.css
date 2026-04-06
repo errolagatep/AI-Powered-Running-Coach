@@ -49,15 +49,44 @@ a:hover { text-decoration: underline; }
 }
 
 .navbar-brand {
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 800;
   color: var(--accent);
   margin-right: 32px;
   text-decoration: none;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   letter-spacing: -.3px;
+  flex-shrink: 0;
+}
+
+.navbar-logo {
+  height: 32px;
+  width: auto;
+  display: block;
+  object-fit: contain;
+}
+
+.navbar-brand-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+}
+
+.navbar-brand-name {
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--accent);
+  letter-spacing: -.3px;
+}
+
+.navbar-brand-tagline {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-sec);
+  letter-spacing: .3px;
+  text-transform: uppercase;
 }
 
 .navbar-nav {
@@ -479,9 +508,16 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .auth-logo {
-  text-align: center;
-  font-size: 44px;
-  margin-bottom: 8px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.auth-logo-img {
+  height: 64px;
+  width: auto;
+  object-fit: contain;
 }
 
 .auth-title {
@@ -497,6 +533,49 @@ input[type="range"]::-webkit-slider-thumb {
   font-size: 13px;
   color: var(--text-sec);
   margin-bottom: 28px;
+}
+
+.btn-google {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 11px 16px;
+  background: #fff;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+  transition: background .15s, border-color .15s, box-shadow .15s;
+  text-decoration: none;
+  margin-bottom: 4px;
+}
+
+.btn-google:hover {
+  background: #f8f9fa;
+  border-color: #c0c8d4;
+  box-shadow: 0 1px 4px rgba(15,23,42,0.08);
+  text-decoration: none;
+}
+
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 16px 0;
+  color: var(--text-sec);
+  font-size: 12px;
+}
+
+.divider::before,
+.divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border);
 }
 
 .tab-switcher {
