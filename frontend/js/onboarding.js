@@ -249,7 +249,7 @@ async function submitAssessment() {
 
   const stepEls = showGenOverlay(
     "Analysing your profile…",
-    "Your AI coach is building a personalised picture of your running",
+    "Takbo Coach is building a personalised picture of your running",
     [
       "Reading your running history",
       "Identifying your strengths",
@@ -297,7 +297,7 @@ async function submitAssessment() {
     hideGenOverlay();
     showError(err.message || "Something went wrong. Please try again.");
     btn.disabled = false;
-    btn.textContent = "Build My Profile 🤖";
+    btn.textContent = "Build My Profile 🏃";
   }
 }
 
@@ -328,7 +328,7 @@ async function generatePlan() {
 
   const stepEls = showGenOverlay(
     "Generating your training plan…",
-    "Your AI coach is designing the perfect week for you",
+    "Takbo Coach is designing the perfect week for you",
     [
       "Reviewing your runner profile",
       "Calculating ideal weekly volume",

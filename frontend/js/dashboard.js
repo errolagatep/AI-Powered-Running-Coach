@@ -151,7 +151,7 @@ async function generateFeedback(runId, btn) {
     }
   } catch (err) {
     btn.disabled = false;
-    btn.textContent = "✨ Generate AI Feedback";
+    btn.textContent = "✨ Get Takbo Coach Feedback";
     alert(err.message || "Failed to generate feedback.");
   }
 }
@@ -197,7 +197,7 @@ function runCard(run) {
     expandContent = `<div style="padding:10px 0 4px;">
       <button class="btn btn-secondary" style="font-size:13px;"
         onclick="event.stopPropagation();generateFeedback('${run.id}',this)">
-        ✨ Generate AI Feedback
+        ✨ Get Takbo Coach Feedback
       </button>
     </div>`;
   } else {
@@ -445,7 +445,7 @@ function toggleRunExpand(card) {
 function toggleFeedback(btn) {
   const content = btn.nextElementSibling;
   const isOpen = content.classList.toggle("open");
-  btn.textContent = (isOpen ? "▼ Hide" : "▶ Show") + " AI feedback";
+  btn.textContent = (isOpen ? "▼ Hide" : "▶ Show") + " coach feedback";
 }
 
 function renderMarkdown(text) {

@@ -75,15 +75,22 @@ a:hover { text-decoration: underline; }
 }
 
 .navbar-brand-name {
-  font-size: 17px;
-  font-weight: 800;
-  color: var(--accent);
-  letter-spacing: -.3px;
+  font-size: 20px;
+  font-weight: 900;
+  font-style: italic;
+  letter-spacing: -.5px;
+  background: linear-gradient(135deg, #F7A52B 0%, #F97316 40%, #EF4444 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  line-height: 1;
 }
 
 .navbar-brand-tagline {
-  font-size: 10px;
-  font-weight: 500;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
   color: var(--text-sec);
   letter-spacing: .3px;
   text-transform: uppercase;
@@ -817,10 +824,35 @@ input[type="range"]::-webkit-slider-thumb {
 
 .auth-title {
   text-align: center;
-  font-size: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1;
+  margin-bottom: 6px;
+  gap: 2px;
+}
+
+.auth-title-takbo {
+  font-size: 48px;
+  font-weight: 900;
+  font-style: italic;
+  letter-spacing: -1px;
+  background: linear-gradient(135deg, #F7A52B 0%, #F97316 40%, #EF4444 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  line-height: 1;
+  text-shadow: none;
+  filter: drop-shadow(0 2px 8px rgba(249,115,22,0.30));
+}
+
+.auth-title-coach {
+  font-size: 14px;
   font-weight: 800;
-  margin-bottom: 4px;
-  letter-spacing: -.4px;
+  font-style: italic;
+  letter-spacing: 3px;
+  color: var(--text-sec);
+  text-transform: uppercase;
 }
 
 .auth-subtitle {

@@ -303,10 +303,10 @@ function openRunDetail(run) {
 
   const feedbackHtml = run.ai_feedback
     ? `<div class="ai-feedback-box">
-         <div class="ai-feedback-label">🤖 Coach Feedback</div>
+         <div class="ai-feedback-label">🏃 Takbo Coach Feedback</div>
          <div class="ai-feedback-text">${escapeHtml(run.ai_feedback)}</div>
        </div>`
-    : `<div style="color:var(--text-sec);font-size:13px;">No AI feedback available for this run.</div>`;
+    : `<div style="color:var(--text-sec);font-size:13px;">No coaching feedback available for this run.</div>`;
 
   document.getElementById("run-detail-date").textContent = dateStr;
   document.getElementById("run-detail-body").innerHTML = `
