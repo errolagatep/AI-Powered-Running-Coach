@@ -144,6 +144,22 @@ a:hover { text-decoration: underline; }
   border: 2px solid var(--border);
 }
 
+.navbar-initials {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--accent-glow);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--accent);
+  flex-shrink: 0;
+  letter-spacing: 0;
+}
+
 /* ── Profile page ──────────────────────────────────────────────────────────── */
 .profile-avatar-section {
   display: flex;
@@ -199,6 +215,19 @@ a:hover { text-decoration: underline; }
   transition: background 0.15s;
 }
 .profile-avatar-overlay:hover { background: var(--accent-dim); }
+
+/* Profile page — mobile layout */
+@media (max-width: 600px) {
+  .profile-avatar-section {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 14px;
+    padding: 20px 16px;
+  }
+  .profile-avatar-section > div:last-child { margin-left: 0; }
+  .profile-save-btn { width: 100%; }
+}
 
 /* ── Layout ────────────────────────────────────────────────────────────────── */
 .container {
@@ -1929,11 +1958,15 @@ input[type="range"]::-webkit-slider-thumb {
   line-height: 1.4;
 }
 
-/* ── Reschedule button ────────────────────────────────────────────────────── */
+/* ── Workout card footer (reschedule + vary) ──────────────────────────────── */
 .workout-card-footer {
   padding: 10px 16px;
   border-top: 1px solid var(--border);
   background: var(--bg);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 .btn-reschedule {
   display: inline-flex;
@@ -1953,6 +1986,60 @@ input[type="range"]::-webkit-slider-thumb {
   color: #2563eb;
   border-color: rgba(59,130,246,0.45);
   background: rgba(59,130,246,0.06);
+}
+
+.btn-vary {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent);
+  background: var(--accent-glow);
+  border: 1.5px solid rgba(249,115,22,0.25);
+  border-radius: 6px;
+  padding: 5px 10px;
+  cursor: pointer;
+  transition: color .15s, border-color .15s, background .15s;
+}
+.btn-vary:hover {
+  background: rgba(249,115,22,0.18);
+  border-color: var(--accent);
+}
+
+/* Card state while a variation is being generated */
+.workout-card.varying {
+  opacity: 0.6;
+  pointer-events: none;
+}
+.vary-loading-text {
+  font-size: 12px;
+  color: var(--text-sec);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Badge shown on cards whose workout has been varied */
+.workout-variation-badge {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--accent);
+  background: var(--accent-glow);
+  border: 1px solid rgba(249,115,22,0.25);
+  border-radius: 4px;
+  padding: 2px 6px;
+}
+
+/* Varied card gets a subtle accent border */
+.workout-card.varied {
+  border-color: rgba(249,115,22,0.35);
+}
+.workout-card.varied .workout-header {
+  background: rgba(249,115,22,0.05);
+  border-bottom-color: rgba(249,115,22,0.15);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -2131,11 +2218,10 @@ html { scroll-behavior: smooth; }
     order: 2;
   }
 
-  /* Hide username on small screens — keep only logout */
-  .navbar-user,
-  .navbar-user-link {
-    display: none;
-  }
+  /* On mobile: show avatar/initials icon, hide the text label */
+  .navbar-user { display: none; }
+  .navbar-user-link { display: flex; }
+  .navbar-user-name { display: none; }
 
   .nav-hamburger {
     display: flex;

@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 import json
 from ..database import get_supabase
 from ..auth import get_current_user
-from ..coach import generate_weekly_plan, _fmt_pace
+from ..coach import generate_weekly_plan, generate_workout_variation, _fmt_pace
 from ..schemas import PlanRescheduleRequest
 
 router = APIRouter(prefix="/api/plans", tags=["plans"])
@@ -152,6 +152,95 @@ def create_plan(
         "id": plan["id"],
         "week_start": plan["week_start"],
         "generated_at": plan["generated_at"],
+        "plan": plan_data,
+    }
+
+
+@router.post("/{plan_id}/vary/{day_name}")
+def vary_workout(
+    plan_id: str,
+    day_name: str,
+    current_user: dict = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase),
+):
+    """Replace a workout day with an AI-generated variation at the same intensity."""
+    if day_name not in VALID_DAYS:
+        raise HTTPException(status_code=400, detail="Invalid day name")
+
+    result = (
+        supabase.table("training_plans")
+        .select("*")
+        .eq("id", plan_id)
+        .eq("user_id", current_user["id"])
+        .execute()
+    )
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    plan_row = result.data[0]
+    plan_data = json.loads(plan_row["plan_json"])
+
+    days = plan_data.get("days", [])
+    day_idx = next((i for i, d in enumerate(days) if d["day"] == day_name), None)
+    if day_idx is None:
+        raise HTTPException(status_code=404, detail="Day not found in plan")
+
+    day = days[day_idx]
+    if day.get("workout_type") in ("Rest", "Active Recovery"):
+        raise HTTPException(status_code=400, detail="Cannot vary a rest or active recovery day")
+
+    recent_result = (
+        supabase.table("run_logs")
+        .select("date,distance_km,duration_min,pace_per_km,heart_rate_avg,effort_level")
+        .eq("user_id", current_user["id"])
+        .order("date", desc=True)
+        .limit(10)
+        .execute()
+    )
+
+    goal_result = (
+        supabase.table("goals")
+        .select("race_type,race_date,target_time_min")
+        .eq("user_id", current_user["id"])
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    goal = None
+    if goal_result.data:
+        g = goal_result.data[0]
+        goal = {"race_type": g["race_type"], "race_date": g["race_date"], "target_time_min": g["target_time_min"]}
+
+    assessment_result = (
+        supabase.table("runner_assessments")
+        .select("*")
+        .eq("user_id", current_user["id"])
+        .execute()
+    )
+    assessment = assessment_result.data[0] if assessment_result.data else None
+
+    variation = generate_workout_variation(
+        day=day,
+        recent_runs=recent_result.data,
+        goal=goal,
+        assessment=assessment,
+    )
+
+    if not variation:
+        raise HTTPException(status_code=500, detail="Failed to generate workout variation")
+
+    CONTENT_FIELDS = ["workout_type", "title", "description", "distance_km", "duration_min", "intensity", "notes"]
+    for field in CONTENT_FIELDS:
+        if field in variation:
+            days[day_idx][field] = variation[field]
+    days[day_idx]["is_variation"] = True
+
+    supabase.table("training_plans").update({"plan_json": json.dumps(plan_data)}).eq("id", plan_id).execute()
+
+    return {
+        "id": plan_row["id"],
+        "week_start": plan_row["week_start"],
+        "generated_at": plan_row["generated_at"],
         "plan": plan_data,
     }
 

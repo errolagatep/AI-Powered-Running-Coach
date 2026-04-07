@@ -40,7 +40,7 @@
     <p>Manage your account and personal details</p>
   </div>
 
-  <!-- Avatar -->
+  <!-- Avatar / profile hero -->
   <div class="profile-avatar-section">
     <div class="profile-avatar-wrap" id="avatar-wrap">
       <img id="avatar-img" class="profile-avatar" src="" alt="Avatar" style="display:none;" />
@@ -50,11 +50,11 @@
       </label>
       <input type="file" id="avatar-input" accept="image/*" style="display:none;" onchange="uploadAvatar(this)" />
     </div>
-    <div>
-      <div id="profile-name-display" style="font-size:18px;font-weight:700;color:var(--text);"></div>
-      <div id="profile-email-display" style="font-size:13px;color:var(--text-sec);margin-top:2px;"></div>
+    <div style="flex:1;min-width:0;">
+      <div id="profile-name-display" style="font-size:20px;font-weight:700;color:var(--text);"></div>
+      <div id="profile-email-display" style="font-size:13px;color:var(--text-sec);margin-top:3px;"></div>
+      <div id="avatar-loading" class="hidden" style="font-size:13px;color:var(--text-sec);margin-top:6px;">Uploading…</div>
     </div>
-    <div id="avatar-loading" class="hidden" style="font-size:13px;color:var(--text-sec);margin-left:auto;">Uploading…</div>
   </div>
 
   <!-- Profile form -->
@@ -86,13 +86,13 @@
       </div>
     </div>
 
-    <div class="form-group" style="max-width:220px;">
+    <div class="form-group" style="max-width:240px;">
       <label for="p-maxhr">Max Heart Rate <span style="opacity:.5;font-size:12px;">optional</span></label>
       <input class="form-control" type="number" id="p-maxhr" placeholder="e.g. 185" min="100" max="250" />
     </div>
 
     <div style="display:flex;gap:12px;margin-top:8px;">
-      <button class="btn btn-primary" id="save-btn" onclick="saveProfile()">Save changes</button>
+      <button class="btn btn-primary profile-save-btn" id="save-btn" onclick="saveProfile()">Save changes</button>
     </div>
   </div>
 

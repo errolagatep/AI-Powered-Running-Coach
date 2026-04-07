@@ -224,20 +224,36 @@ function workoutCard(day, run) {
        </div>`
     : "";
 
-  const rescheduleBtn = !run && currentPlanId
-    ? `<div class="workout-card-footer">
-         <button class="btn-reschedule" onclick="event.stopPropagation();openRescheduleModal('${day.day}')">📅 Reschedule</button>
-       </div>`
+  const variationBadge = day.is_variation
+    ? `<span class="workout-variation-badge">🔀 Varied</span>`
     : "";
 
+  // Footer buttons: reschedule always shown for incomplete days; vary only for non-rest
+  let footerHtml = "";
+  if (!run && currentPlanId) {
+    const rescheduleBtn = `<button class="btn-reschedule" onclick="event.stopPropagation();openRescheduleModal('${day.day}')">📅 Reschedule</button>`;
+    const varyBtn = !isRest
+      ? `<button class="btn-vary" onclick="event.stopPropagation();varyWorkout('${day.day}')">🔀 Vary workout</button>`
+      : "";
+    footerHtml = `<div class="workout-card-footer">${rescheduleBtn}${varyBtn}</div>`;
+  }
+
   const clickAttr = run ? `onclick="openRunDetailById('${run.id}')"` : "";
-  const cardClass = `workout-card${run ? " completed" : ""}${day.rescheduled_from ? " rescheduled" : ""}`;
+  const cardClass = [
+    "workout-card",
+    run ? "completed" : "",
+    day.rescheduled_from ? "rescheduled" : "",
+    day.is_variation && !run ? "varied" : "",
+  ].filter(Boolean).join(" ");
 
   return `
     <div class="${cardClass}" ${clickAttr}>
       <div class="workout-header">
         <span class="workout-day">${day.day}</span>
-        <span class="workout-type-badge ${badgeClass}">${type}</span>
+        <div style="display:flex;align-items:center;gap:6px;">
+          ${variationBadge}
+          <span class="workout-type-badge ${badgeClass}">${type}</span>
+        </div>
       </div>
       <div class="workout-body">
         <div class="workout-title">${day.title}</div>
@@ -247,7 +263,7 @@ function workoutCard(day, run) {
         ${rescheduledBanner}
         ${completedBanner}
       </div>
-      ${rescheduleBtn}
+      ${footerHtml}
     </div>
   `;
 }
@@ -439,6 +455,36 @@ async function confirmReschedule() {
   } finally {
     confirmBtn.disabled = false;
     confirmBtn.textContent = "Confirm swap";
+  }
+}
+
+// ── Vary workout ──────────────────────────────────────────────
+async function varyWorkout(dayName) {
+  if (!currentPlanId) return;
+
+  // Find the card and put it into a loading state
+  let targetCard = null;
+  for (const card of document.querySelectorAll(".workout-card")) {
+    if (card.querySelector(".workout-day")?.textContent === dayName) {
+      targetCard = card;
+      break;
+    }
+  }
+  if (targetCard) {
+    targetCard.classList.add("varying");
+    const footer = targetCard.querySelector(".workout-card-footer");
+    if (footer) {
+      footer.innerHTML = `<span class="vary-loading-text"><span class="btn-spinner"></span> Generating variation…</span>`;
+    }
+  }
+
+  try {
+    const data = await api.post(`/plans/${currentPlanId}/vary/${dayName}`, {});
+    currentPlanData = data;
+    renderPlan(data);
+  } catch (err) {
+    alert(err.message || "Failed to generate variation. Please try again.");
+    renderPlan(currentPlanData);
   }
 }
 

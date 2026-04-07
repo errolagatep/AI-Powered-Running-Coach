@@ -61,9 +61,8 @@ async function saveProfile() {
     const updated = await api.put("/profile/", payload);
     localStorage.setItem("user", JSON.stringify({ ...updated, onboarding_complete: updated.onboarding_complete }));
 
-    // Update navbar name
-    const userEl = document.getElementById("navbar-user");
-    if (userEl) userEl.querySelector("a") ? userEl.querySelector("a").textContent = updated.name : (userEl.textContent = updated.name);
+    // Update navbar
+    renderNavbarAvatar(updated);
 
     document.getElementById("profile-name-display").textContent = updated.name;
     showSuccess("profile-success", "Profile saved!");
@@ -116,13 +115,17 @@ async function uploadAvatar(input) {
 function renderNavbarAvatar(user) {
   const userEl = document.getElementById("navbar-user");
   if (!userEl) return;
+  const initials = (user.name || "?").trim().split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
   if (user.avatar_url) {
     userEl.innerHTML = `<a href="/profile.html" class="navbar-user-link">
       <img src="${user.avatar_url}" class="navbar-avatar" alt="${user.name}" />
-      <span>${user.name}</span>
+      <span class="navbar-user-name">${user.name}</span>
     </a>`;
   } else {
-    userEl.innerHTML = `<a href="/profile.html" class="navbar-user-link"><span>${user.name}</span></a>`;
+    userEl.innerHTML = `<a href="/profile.html" class="navbar-user-link">
+      <div class="navbar-initials">${initials}</div>
+      <span class="navbar-user-name">${user.name}</span>
+    </a>`;
   }
 }
 

@@ -230,6 +230,88 @@ def generate_run_feedback(
     return "Unable to generate feedback at this time."
 
 
+def generate_workout_variation(
+    day: dict,
+    recent_runs: list = None,
+    goal: Optional[dict] = None,
+    assessment: Optional[dict] = None,
+) -> Optional[dict]:
+    """Generate an alternative workout with the same intensity but a different structure."""
+    context = (
+        f"Current scheduled workout for {day['day']}:\n"
+        f"- Type: {day['workout_type']}\n"
+        f"- Title: {day['title']}\n"
+        f"- Description: {day['description']}\n"
+        f"- Distance: {day['distance_km']} km\n"
+        f"- Duration: {day['duration_min']} min\n"
+        f"- Intensity: {day['intensity']}\n"
+        f"- Notes: {day.get('notes') or 'None'}\n"
+    )
+
+    if recent_runs:
+        context += "\nRecent training (last 5 runs):\n"
+        for r in recent_runs[:5]:
+            context += _run_to_context_line(r) + "\n"
+
+    if goal:
+        context += f"\nGoal race: {goal['race_type']}\n"
+
+    if assessment:
+        context += _assessment_context(assessment)
+
+    day_schema = {
+        "type": "object",
+        "properties": {
+            "workout_type": {"type": "string"},
+            "title": {"type": "string"},
+            "description": {"type": "string"},
+            "distance_km": {"type": "number"},
+            "duration_min": {"type": "number"},
+            "intensity": {"type": "string"},
+            "notes": {"type": "string"},
+        },
+        "required": ["workout_type", "title", "description", "distance_km", "duration_min", "intensity", "notes"],
+        "additionalProperties": False,
+    }
+
+    response = get_client().messages.create(
+        model="claude-opus-4-6",
+        max_tokens=600,
+        system=COACH_SYSTEM_PROMPT,
+        messages=[{
+            "role": "user",
+            "content": (
+                f"{context}\n\n"
+                "Generate an ALTERNATIVE version of this workout that:\n"
+                "1. Keeps the SAME workout_type and intensity level\n"
+                "2. Maintains approximately the same distance and duration (±10%)\n"
+                "3. Uses a noticeably DIFFERENT structure or format\n"
+                "   - e.g. if original is one continuous tempo block, try tempo intervals instead\n"
+                "   - e.g. vary the warm-up/cool-down structure, segment lengths, or pace targets\n"
+                "   - e.g. if original is track-style, suggest road or trail variation\n"
+                "4. Is equally appropriate for this athlete's fitness and goals\n\n"
+                "Respond with ONLY valid JSON matching this schema (no markdown, no explanation):\n"
+                f"{json.dumps(day_schema, indent=2)}"
+            ),
+        }],
+    )
+
+    for block in response.content:
+        if block.type == "text":
+            text = block.text.strip()
+            if text.startswith("```"):
+                text = text.split("```")[1]
+                if text.startswith("json"):
+                    text = text[4:]
+                text = text.strip()
+            try:
+                return json.loads(text)
+            except json.JSONDecodeError:
+                break
+
+    return None
+
+
 def generate_weekly_plan(
     recent_runs: list,
     goal: Optional[dict] = None,

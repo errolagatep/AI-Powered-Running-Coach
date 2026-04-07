@@ -45,13 +45,26 @@ function effortClass(effort) {
 function renderNavbarUser(user) {
   const userEl = document.getElementById("navbar-user");
   if (!userEl || !user) return;
+  const initials = (user.name || "?").trim().split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
   if (user.avatar_url) {
     userEl.innerHTML = `<a href="/profile.html" class="navbar-user-link">
       <img src="${user.avatar_url}" class="navbar-avatar" alt="${user.name}" />
-      <span>${user.name}</span>
+      <span class="navbar-user-name">${user.name}</span>
     </a>`;
   } else {
-    userEl.innerHTML = `<a href="/profile.html" class="navbar-user-link">${user.name}</a>`;
+    userEl.innerHTML = `<a href="/profile.html" class="navbar-user-link">
+      <div class="navbar-initials">${initials}</div>
+      <span class="navbar-user-name">${user.name}</span>
+    </a>`;
+  }
+
+  // Inject Profile into the hamburger nav (for mobile)
+  const navList = document.querySelector(".navbar-nav");
+  if (navList && !navList.querySelector(".nav-profile-link")) {
+    const li = document.createElement("li");
+    const isActive = window.location.pathname === "/profile.html";
+    li.innerHTML = `<a href="/profile.html" class="nav-profile-link${isActive ? " active" : ""}">Profile</a>`;
+    navList.appendChild(li);
   }
 }
 

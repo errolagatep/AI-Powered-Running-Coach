@@ -196,6 +196,7 @@ async function generateFeedback(runId, btn) {
     if (idx !== -1) _allLoaded[idx] = updated;
     const card = document.getElementById(`rcard-${runId}`);
     if (card) {
+      if (_maps[runId]) { _maps[runId].remove(); delete _maps[runId]; }
       card.outerHTML = runCard(updated);
       document.getElementById(`rcard-${runId}`)?.classList.add("run-expanded");
       initRouteMaps([updated]);
