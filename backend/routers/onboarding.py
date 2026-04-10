@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from supabase import Client
-from datetime import datetime
+from datetime import datetime, date
 from ..database import get_supabase
 from ..schemas import AssessmentCreate, AssessmentResponse
 from ..auth import get_current_user
@@ -25,6 +25,7 @@ def submit_assessment(
         "weekly_km": data.weekly_km,
         "primary_goal": data.primary_goal,
         "injury_history": data.injury_history,
+        "medications": data.medications,
         "available_days": data.available_days,
         "preferred_distance": data.preferred_distance,
         "load_capacity": data.load_capacity,
@@ -32,12 +33,22 @@ def submit_assessment(
         "ai_followup_a": data.ai_followup_a,
     }
 
-    # Persist weight / max_hr to the users table if provided
+    # Persist body stats to the users table if provided
     user_update = {}
     if data.weight_kg is not None:
         user_update["weight_kg"] = data.weight_kg
     if data.max_hr is not None:
         user_update["max_hr"] = data.max_hr
+    if getattr(data, "height_cm", None) is not None:
+        user_update["height_cm"] = data.height_cm
+    if getattr(data, "birthdate", None):
+        user_update["birthdate"] = data.birthdate
+        try:
+            bd = date.fromisoformat(data.birthdate)
+            today = date.today()
+            user_update["age"] = today.year - bd.year - ((today.month, today.day) < (bd.month, bd.day))
+        except Exception:
+            pass
     if user_update:
         supabase.table("users").update(user_update).eq("id", current_user["id"]).execute()
 

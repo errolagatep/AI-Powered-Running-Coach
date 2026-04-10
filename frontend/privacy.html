@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Privacy Policy — Takbo Running Coach</title>
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+
+<nav class="navbar">
+  <a class="navbar-brand" href="/index.html">
+    <img class="navbar-logo" src="/images/logo.png" alt="Takbo" onerror="this.style.display='none';" />
+    <span class="navbar-brand-text">
+      <span class="navbar-brand-name">Takbo</span>
+      <span class="navbar-brand-tagline">Running Coach</span>
+    </span>
+  </a>
+</nav>
+
+<div class="container" style="max-width:720px;padding:40px 20px 80px;">
+  <h1 style="font-size:28px;font-weight:800;margin-bottom:8px;">Privacy Policy</h1>
+  <p style="color:var(--text-sec);font-size:14px;margin-bottom:40px;">Last updated: April 2026</p>
+
+  <div style="font-size:15px;line-height:1.8;color:var(--text);">
+
+    <h2 style="font-size:18px;font-weight:700;margin:32px 0 12px;">1. Who We Are</h2>
+    <p>Takbo Running Coach ("Takbo", "we", "us") is an AI-powered running coaching application. We help athletes track runs, generate personalised training plans, and improve their performance.</p>
+
+    <h2 style="font-size:18px;font-weight:700;margin:32px 0 12px;">2. What Data We Collect</h2>
+    <p>We collect the following information when you use Takbo:</p>
+    <ul style="padding-left:24px;margin:8px 0;">
+      <li><strong>Account information:</strong> your name, email address, and password (stored as a secure hash).</li>
+      <li><strong>Profile information:</strong> date of birth, height, weight, max heart rate — all optional.</li>
+      <li><strong>Health information:</strong> injury history and current medications — optional, used only to personalise coaching advice.</li>
+      <li><strong>Run data:</strong> distance, duration, pace, heart rate, effort level, and notes for each logged run.</li>
+      <li><strong>Strava data:</strong> if you connect your Strava account, we import your running activities (distance, duration, pace, heart rate, route map) from Strava's API.</li>
+    </ul>
+
+    <h2 style="font-size:18px;font-weight:700;margin:32px 0 12px;">3. How We Use Your Data</h2>
+    <ul style="padding-left:24px;margin:8px 0;">
+      <li>To provide personalised AI coaching feedback on your runs.</li>
+      <li>To generate weekly training plans tailored to your goals and fitness level.</li>
+      <li>To track your progress, streaks, achievements, and personal bests.</li>
+      <li>To improve the coaching experience over time.</li>
+    </ul>
+    <p>We do <strong>not</strong> sell your data to third parties. We do not use your data for advertising.</p>
+
+    <h2 style="font-size:18px;font-weight:700;margin:32px 0 12px;">4. Strava Integration</h2>
+    <p>When you connect your Strava account, Takbo requests the <code>activity:read_all</code> scope to import your running activities. We store your Strava access token securely and use it only to fetch your run data on your request. You can disconnect Strava at any time from your Profile page, which will delete your stored Strava tokens. Your previously imported runs will remain in Takbo unless you delete your account.</p>
+    <p>Takbo's use of Strava data complies with the <a href="https://www.strava.com/legal/api" target="_blank" rel="noopener" style="color:var(--accent);">Strava API Agreement</a>.</p>
+
+    <h2 style="font-size:18px;font-weight:700;margin:32px 0 12px;">5. Data Storage and Security</h2>
+    <p>Your data is stored in a Supabase PostgreSQL database with row-level security. Passwords are never stored in plain text. Strava tokens are stored encrypted at rest. We use HTTPS for all data in transit.</p>
+
+    <h2 style="font-size:18px;font-weight:700;margin:32px 0 12px;">6. Data Retention and Deletion</h2>
+    <p>You can permanently delete your account and all associated data at any time from your Profile page. This removes your runs, training plans, achievements, Strava tokens, and profile — irreversibly.</p>
+
+    <h2 style="font-size:18px;font-weight:700;margin:32px 0 12px;">7. Third-Party Services</h2>
+    <p>Takbo uses the following third-party services:</p>
+    <ul style="padding-left:24px;margin:8px 0;">
+      <li><strong>Anthropic Claude API</strong> — to generate AI coaching feedback and training plans. Run data is sent to Anthropic's API for this purpose.</li>
+      <li><strong>Strava API</strong> — to import your running activities when you connect your account.</li>
+      <li><strong>Supabase</strong> — for database storage and authentication.</li>
+    </ul>
+
+    <h2 style="font-size:18px;font-weight:700;margin:32px 0 12px;">8. Contact</h2>
+    <p>If you have questions about this privacy policy or your data, please contact us at the email address associated with your Takbo account.</p>
+
+  </div>
+</div>
+
+</body>
+</html>

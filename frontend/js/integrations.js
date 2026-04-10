@@ -69,8 +69,12 @@ async function stravaSync() {
       `Sync complete: ${data.imported} new run${data.imported !== 1 ? "s" : ""} imported, ${data.skipped} already existed.`,
       "success"
     );
-    // Refresh the run list on the page if the function exists
     if (typeof loadRuns === "function") loadRuns();
+    if (data.new_achievements?.length && typeof showAchievementToast === "function") {
+      data.new_achievements.forEach((a, i) => {
+        setTimeout(() => showAchievementToast(a), 800 + i * 800);
+      });
+    }
   } catch (e) {
     showStravaMessage(e.message || "Sync failed. Please try again.", "error");
   } finally {

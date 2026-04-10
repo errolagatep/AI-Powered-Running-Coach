@@ -62,6 +62,213 @@ def _get_assessment(user_id: str, supabase: Client):
     return result.data[0] if result.data else None
 
 
+def _get_user_joined_date(user_id: str, supabase: Client) -> str:
+    """Return the user's account creation date as an ISO date string (YYYY-MM-DD)."""
+    result = supabase.table("users").select("created_at").eq("id", user_id).execute()
+    if result.data and result.data[0].get("created_at"):
+        return str(result.data[0]["created_at"])[:10]
+    return "1970-01-01"
+
+
+def _sync_achievements(user_id: str, supabase: Client, joined_date: str = None) -> list:
+    """Recompute all achievements from run history with correct unlocked_at dates.
+
+    Wipes existing achievements and re-inserts them so dates are always accurate.
+    Only runs with date >= joined_date are counted (defaults to user's account creation date).
+    Returns list of newly unlocked achievement dicts (ones that weren't there before).
+    """
+    if joined_date is None:
+        joined_date = _get_user_joined_date(user_id, supabase)
+
+    # Record which achievements the user already had before the reset
+    existing_keys = {
+        a["achievement_key"]
+        for a in supabase.table("achievements").select("achievement_key").eq("user_id", user_id).execute().data
+    }
+
+    # Wipe all achievements so we can re-insert with correct dates
+    supabase.table("achievements").delete().eq("user_id", user_id).execute()
+
+    # Fetch runs sorted oldest-first for chronological replay
+    all_runs = (
+        supabase.table("run_logs")
+        .select("distance_km,pace_per_km,date")
+        .eq("user_id", user_id)
+        .gte("date", joined_date)
+        .order("date", desc=False)
+        .execute()
+        .data
+    )
+
+    if not all_runs:
+        return []
+
+    # Normalise dates to YYYY-MM-DD strings
+    for r in all_runs:
+        r["_date"] = str(r["date"])[:10]
+
+    # ── Run-count achievements: date of the Nth run ───────────────────────────
+    def date_of_nth_run(n):
+        return all_runs[n - 1]["_date"] if len(all_runs) >= n else None
+
+    # ── Cumulative distance achievements: date the running total crossed threshold
+    def date_km_threshold(threshold):
+        cum = 0.0
+        for r in all_runs:
+            cum += r["distance_km"]
+            if cum >= threshold:
+                return r["_date"]
+        return None
+
+    # ── Speed demon: date of the earliest run under 5:00/km ──────────────────
+    def date_first_fast_run():
+        for r in all_runs:
+            if r["pace_per_km"] < 5.0:
+                return r["_date"]
+        return None
+
+    # ── Streak achievements: date the streak first hit N consecutive days ─────
+    def date_streak_reached(n):
+        unique_dates = sorted({r["_date"] for r in all_runs})
+        if len(unique_dates) < n:
+            return None
+        streak = 1
+        for i in range(1, len(unique_dates)):
+            prev = date.fromisoformat(unique_dates[i - 1])
+            curr = date.fromisoformat(unique_dates[i])
+            if (curr - prev).days == 1:
+                streak += 1
+                if streak >= n:
+                    return unique_dates[i]
+            else:
+                streak = 1
+        return None
+
+    # ── Weekly warrior: date of the run that pushed any week over 30 km ───────
+    def date_weekly_warrior():
+        from collections import defaultdict
+        weekly = defaultdict(float)
+        weekly_last_date = {}
+        for r in all_runs:
+            d = date.fromisoformat(r["_date"])
+            # ISO week key: year + week number
+            week_key = d.isocalendar()[:2]  # (year, week)
+            weekly[week_key] += r["distance_km"]
+            weekly_last_date[week_key] = r["_date"]
+            if weekly[week_key] >= 30:
+                return weekly_last_date[week_key]
+        return None
+
+    # Map each key to its earned date
+    unlock_dates = {
+        "first_run":      date_of_nth_run(1),
+        "runs_10":        date_of_nth_run(10),
+        "runs_50":        date_of_nth_run(50),
+        "runs_100":       date_of_nth_run(100),
+        "dist_10km":      date_km_threshold(10),
+        "dist_100km":     date_km_threshold(100),
+        "dist_500km":     date_km_threshold(500),
+        "dist_1000km":    date_km_threshold(1000),
+        "streak_3":       date_streak_reached(3),
+        "streak_7":       date_streak_reached(7),
+        "streak_30":      date_streak_reached(30),
+        "speed_demon":    date_first_fast_run(),
+        "weekly_warrior": date_weekly_warrior(),
+    }
+
+    newly_unlocked = []
+    for key, earned_date in unlock_dates.items():
+        if earned_date is None:
+            continue
+        if key not in ACHIEVEMENTS:
+            continue
+        meta = ACHIEVEMENTS[key]
+        is_new = key not in existing_keys
+        supabase.table("achievements").insert({
+            "user_id":         user_id,
+            "achievement_key": key,
+            "title":           meta["title"],
+            "description":     meta["description"],
+            "icon":            meta["icon"],
+            "unlocked_at":     earned_date + "T00:00:00+00:00",
+        }).execute()
+        if is_new:
+            newly_unlocked.append({"achievement_key": key, **meta})
+
+    return newly_unlocked
+
+
+def _compute_personal_bests(user_id: str, supabase: Client) -> dict:
+    """Compute estimated personal best times from logged runs, merged with any manually entered PBs.
+    Manual bests override computed ones for a given distance if they are faster."""
+    result = (
+        supabase.table("run_logs")
+        .select("date,distance_km,pace_per_km")
+        .eq("user_id", user_id)
+        .execute()
+    )
+    RACE_WINDOWS = {
+        "5K":            (4.0,  6.0,   5.0),
+        "10K":           (8.0,  12.0,  10.0),
+        "Half Marathon": (19.0, 23.0,  21.0975),
+        "Marathon":      (38.0, 45.0,  42.195),
+    }
+    bests = {}
+    for race_name, (min_km, max_km, race_km) in RACE_WINDOWS.items():
+        matching = [r for r in result.data if min_km <= r["distance_km"] <= max_km]
+        if matching:
+            best = min(matching, key=lambda r: r["pace_per_km"])
+            bests[race_name] = {
+                "time_min":    round(best["pace_per_km"] * race_km, 2),
+                "pace_per_km": round(best["pace_per_km"], 4),
+                "date":        str(best["date"])[:10],
+            }
+
+    # Merge manually entered PBs — prefer the faster time for each distance
+    manual_result = (
+        supabase.table("user_personal_bests")
+        .select("race,time_min,race_date")
+        .eq("user_id", user_id)
+        .execute()
+    )
+    for row in (manual_result.data or []):
+        race = row["race"]
+        if race not in bests or row["time_min"] < bests[race]["time_min"]:
+            bests[race] = {
+                "time_min":  round(row["time_min"], 2),
+                "race_date": str(row["race_date"])[:10] if row.get("race_date") else None,
+            }
+
+    return bests
+
+
+def _get_planned_workout_for_date(user_id: str, run_date: datetime, supabase: Client):
+    """Look up the training plan and return the scheduled workout for the run's day of week."""
+    DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    day_name = DAY_NAMES[run_date.weekday()]
+
+    result = (
+        supabase.table("training_plans")
+        .select("plan_json,week_start")
+        .eq("user_id", user_id)
+        .order("generated_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    if not result.data:
+        return None
+
+    try:
+        plan_data = json.loads(result.data[0]["plan_json"])
+        days = plan_data.get("days", [])
+        for day in days:
+            if day.get("day") == day_name:
+                return day
+    except Exception:
+        pass
+    return None
+
+
 def _process_gamification(user_id: str, run: dict, supabase: Client) -> list:
     """Update streak, XP, level; check and unlock achievements. Returns list of new achievements."""
     today = date.today()
@@ -127,13 +334,23 @@ def _process_gamification(user_id: str, run: dict, supabase: Client) -> list:
         supabase.table("user_gamification").insert(gam_payload).execute()
 
     # ── Achievement checks ────────────────────────────────────
+    # Only count runs on or after the user's account creation date
+    joined_date = _get_user_joined_date(user_id, supabase)
+
     # Collect existing achievement keys to avoid duplicates
     existing_keys = {
         a["achievement_key"]
         for a in supabase.table("achievements").select("achievement_key").eq("user_id", user_id).execute().data
     }
 
-    all_runs = supabase.table("run_logs").select("distance_km,pace_per_km").eq("user_id", user_id).execute().data
+    all_runs = (
+        supabase.table("run_logs")
+        .select("distance_km,pace_per_km")
+        .eq("user_id", user_id)
+        .gte("date", joined_date)
+        .execute()
+        .data
+    )
     total_runs = len(all_runs)
     total_km = sum(r["distance_km"] for r in all_runs)
 
@@ -146,13 +363,13 @@ def _process_gamification(user_id: str, run: dict, supabase: Client) -> list:
         supabase.table("run_logs")
         .select("distance_km,date")
         .eq("user_id", user_id)
-        .gte("date", week_start.isoformat())
+        .gte("date", max(joined_date, week_start.isoformat()[:10]))
         .execute()
     )
     weekly_km = sum(r["distance_km"] for r in weekly_result.data)
 
     candidates = []
-    if total_runs == 1:                     candidates.append("first_run")
+    if total_runs >= 1:                     candidates.append("first_run")
     if total_runs >= 10:                    candidates.append("runs_10")
     if total_runs >= 50:                    candidates.append("runs_50")
     if total_runs >= 100:                   candidates.append("runs_100")
@@ -166,16 +383,20 @@ def _process_gamification(user_id: str, run: dict, supabase: Client) -> list:
     if run["pace_per_km"] < 5.0:            candidates.append("speed_demon")
     if weekly_km >= 30:                     candidates.append("weekly_warrior")
 
+    # Use the actual run date as unlocked_at, not the current timestamp
+    run_date_iso = str(run.get("date", ""))[:10] + "T00:00:00+00:00"
+
     newly_unlocked = []
     for key in candidates:
         if key not in existing_keys and key in ACHIEVEMENTS:
             meta = ACHIEVEMENTS[key]
             supabase.table("achievements").insert({
-                "user_id": user_id,
+                "user_id":         user_id,
                 "achievement_key": key,
-                "title": meta["title"],
-                "description": meta["description"],
-                "icon": meta["icon"],
+                "title":           meta["title"],
+                "description":     meta["description"],
+                "icon":            meta["icon"],
+                "unlocked_at":     run_date_iso,
             }).execute()
             newly_unlocked.append({"achievement_key": key, **meta})
 
@@ -221,6 +442,8 @@ def log_run(
     )
 
     assessment = _get_assessment(current_user["id"], supabase)
+    planned_workout = _get_planned_workout_for_date(current_user["id"], data.date, supabase)
+    personal_bests = _compute_personal_bests(current_user["id"], supabase)
 
     feedback = generate_run_feedback(
         run=run,
@@ -233,6 +456,8 @@ def log_run(
             "height_cm": current_user.get("height_cm"),
         },
         assessment=assessment,
+        planned_workout=planned_workout,
+        personal_bests=personal_bests,
     )
 
     updated = supabase.table("run_logs").update({"ai_feedback": feedback}).eq("id", run["id"]).execute()
@@ -346,6 +571,9 @@ def regenerate_feedback(
     )
 
     assessment = _get_assessment(current_user["id"], supabase)
+    run_date = datetime.fromisoformat(str(run["date"]).replace("Z", "").split(".")[0])
+    planned_workout = _get_planned_workout_for_date(current_user["id"], run_date, supabase)
+    personal_bests = _compute_personal_bests(current_user["id"], supabase)
 
     feedback = generate_run_feedback(
         run=run,
@@ -358,6 +586,8 @@ def regenerate_feedback(
             "height_cm": current_user.get("height_cm"),
         },
         assessment=assessment,
+        planned_workout=planned_workout,
+        personal_bests=personal_bests,
     )
 
     updated = supabase.table("run_logs").update({"ai_feedback": feedback}).eq("id", run_id).execute()
@@ -402,11 +632,14 @@ def update_run(
 
 
 def _recalculate_gamification(user_id: str, supabase: Client):
-    """Recompute XP, level, and streak from scratch. Called after a run is deleted."""
+    """Recompute XP, level, and streak from scratch using only runs on/after account creation date."""
+    joined_date = _get_user_joined_date(user_id, supabase)
+
     all_runs = (
         supabase.table("run_logs")
         .select("distance_km,effort_level,pace_per_km,date")
         .eq("user_id", user_id)
+        .gte("date", joined_date)
         .order("date", desc=True)
         .execute()
         .data

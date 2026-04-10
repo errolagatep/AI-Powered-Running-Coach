@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Profile — Takbo Running Coach</title>
   <link rel="stylesheet" href="/css/style.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
 </head>
 <body>
 
@@ -70,18 +71,19 @@
         <input class="form-control" type="text" id="p-name" placeholder="Your name" />
       </div>
       <div class="form-group">
-        <label for="p-age">Age</label>
-        <input class="form-control" type="number" id="p-age" placeholder="e.g. 28" min="10" max="100" />
+        <label for="p-birthdate">Date of Birth <span style="opacity:.5;font-size:12px;">optional</span></label>
+        <input class="form-control" type="text" id="p-birthdate" placeholder="Select your date of birth" readonly />
+        <div id="p-age-display" style="font-size:12px;color:var(--text-sec);margin-top:4px;"></div>
       </div>
     </div>
 
     <div class="form-row">
       <div class="form-group">
-        <label for="p-height">Height (cm)</label>
+        <label for="p-height">Height (cm) <span style="opacity:.5;font-size:12px;">optional</span></label>
         <input class="form-control" type="number" id="p-height" placeholder="e.g. 170" min="100" max="250" step="0.1" />
       </div>
       <div class="form-group">
-        <label for="p-weight">Weight (kg)</label>
+        <label for="p-weight">Weight (kg) <span style="opacity:.5;font-size:12px;">optional</span></label>
         <input class="form-control" type="number" id="p-weight" placeholder="e.g. 65" min="30" max="300" step="0.1" />
       </div>
     </div>
@@ -93,6 +95,129 @@
 
     <div style="display:flex;gap:12px;margin-top:8px;">
       <button class="btn btn-primary profile-save-btn" id="save-btn" onclick="saveProfile()">Save changes</button>
+    </div>
+  </div>
+
+  <!-- Health Info -->
+  <div class="card" style="padding:24px;margin-bottom:24px;">
+    <h3 style="font-size:15px;font-weight:600;margin:0 0 4px;">Health Info</h3>
+    <p style="font-size:13px;color:var(--text-sec);margin:0 0 18px;">Used by your coach to personalise training and feedback. All fields are optional.</p>
+
+    <div id="health-alert" class="alert alert-error hidden"></div>
+    <div id="health-success" class="alert alert-success hidden"></div>
+
+    <div class="form-group">
+      <label for="p-injuries">Past or current injuries</label>
+      <textarea class="form-control" id="p-injuries" rows="2" style="resize:vertical;"
+        placeholder="e.g. Left knee pain, shin splints, plantar fasciitis…"></textarea>
+    </div>
+
+    <div class="form-group" style="margin-top:14px;">
+      <label for="p-medications">Current medications</label>
+      <div style="font-size:12px;color:var(--text-sec);margin-bottom:6px;">Some medications affect heart rate, hydration, and performance. Your coach factors these in.</div>
+      <textarea class="form-control" id="p-medications" rows="2" style="resize:vertical;"
+        placeholder="e.g. Beta-blockers, blood thinners, asthma inhaler… or leave blank if none"></textarea>
+    </div>
+
+    <div style="margin-top:14px;">
+      <button class="btn btn-primary" id="health-save-btn" onclick="saveHealth()">Save health info</button>
+    </div>
+  </div>
+
+  <!-- Personal Bests — Manual Entry -->
+  <div class="card" style="padding:24px;margin-bottom:24px;">
+    <h3 style="font-size:15px;font-weight:600;margin:0 0 4px;">My Personal Bests</h3>
+    <p style="font-size:13px;color:var(--text-sec);margin:0 0 18px;">Enter your official race results. Your coach uses these for analysis and to personalise training.</p>
+
+    <div id="pb-alert" class="alert alert-error hidden"></div>
+    <div id="pb-success" class="alert alert-success hidden"></div>
+
+    <div class="pb-table">
+      <div class="pb-header-row">
+        <span>Distance</span>
+        <span>Time (h:mm:ss)</span>
+        <span>Date <span style="opacity:.5;font-size:11px;">optional</span></span>
+      </div>
+
+      <!-- 5K -->
+      <div class="pb-row">
+        <span class="pb-label">5K</span>
+        <div class="pb-time-wrap">
+          <input type="number" class="pb-h form-control" id="pb-5k-h" min="0" max="9" placeholder="0" />
+          <span class="pb-sep">:</span>
+          <input type="number" class="pb-ms form-control" id="pb-5k-m" min="0" max="59" placeholder="mm" />
+          <span class="pb-sep">:</span>
+          <input type="number" class="pb-ms form-control" id="pb-5k-s" min="0" max="59" placeholder="ss" />
+        </div>
+        <input type="text" class="form-control pb-date" id="pb-5k-date" placeholder="Select date" readonly />
+      </div>
+
+      <!-- 10K -->
+      <div class="pb-row">
+        <span class="pb-label">10K</span>
+        <div class="pb-time-wrap">
+          <input type="number" class="pb-h form-control" id="pb-10k-h" min="0" max="9" placeholder="0" />
+          <span class="pb-sep">:</span>
+          <input type="number" class="pb-ms form-control" id="pb-10k-m" min="0" max="59" placeholder="mm" />
+          <span class="pb-sep">:</span>
+          <input type="number" class="pb-ms form-control" id="pb-10k-s" min="0" max="59" placeholder="ss" />
+        </div>
+        <input type="text" class="form-control pb-date" id="pb-10k-date" placeholder="Select date" readonly />
+      </div>
+
+      <!-- Half Marathon -->
+      <div class="pb-row">
+        <span class="pb-label">Half&nbsp;Marathon</span>
+        <div class="pb-time-wrap">
+          <input type="number" class="pb-h form-control" id="pb-hm-h" min="0" max="9" placeholder="0" />
+          <span class="pb-sep">:</span>
+          <input type="number" class="pb-ms form-control" id="pb-hm-m" min="0" max="59" placeholder="mm" />
+          <span class="pb-sep">:</span>
+          <input type="number" class="pb-ms form-control" id="pb-hm-s" min="0" max="59" placeholder="ss" />
+        </div>
+        <input type="text" class="form-control pb-date" id="pb-hm-date" placeholder="Select date" readonly />
+      </div>
+
+      <!-- Marathon -->
+      <div class="pb-row">
+        <span class="pb-label">Marathon</span>
+        <div class="pb-time-wrap">
+          <input type="number" class="pb-h form-control" id="pb-mar-h" min="0" max="9" placeholder="0" />
+          <span class="pb-sep">:</span>
+          <input type="number" class="pb-ms form-control" id="pb-mar-m" min="0" max="59" placeholder="mm" />
+          <span class="pb-sep">:</span>
+          <input type="number" class="pb-ms form-control" id="pb-mar-s" min="0" max="59" placeholder="ss" />
+        </div>
+        <input type="text" class="form-control pb-date" id="pb-mar-date" placeholder="Select date" readonly />
+      </div>
+    </div>
+
+    <div style="margin-top:16px;">
+      <button class="btn btn-primary" id="pb-save-btn" onclick="saveManualBests()">Save PBs</button>
+    </div>
+  </div>
+
+  <!-- AI Race Predictions -->
+  <div class="card" style="padding:24px;margin-bottom:24px;">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:4px;">
+      <div>
+        <h3 style="font-size:15px;font-weight:600;margin:0 0 4px;">AI Race Time Predictions</h3>
+        <p style="font-size:13px;color:var(--text-sec);margin:0;">Based on your training data, your coach predicts what you could realistically achieve in the next 3–6 months.</p>
+      </div>
+      <button class="btn btn-secondary" id="predict-btn" onclick="generatePredictions()" style="white-space:nowrap;flex-shrink:0;">Generate</button>
+    </div>
+
+    <div id="predictions-loading" class="hidden" style="font-size:13px;color:var(--text-sec);padding:16px 0;">Analysing your training data…</div>
+    <div id="predictions-error" class="alert alert-error hidden" style="margin-top:14px;"></div>
+
+    <div id="predictions-content" class="hidden" style="margin-top:18px;">
+      <div id="predictions-summary" style="font-size:13px;color:var(--text-sec);margin-bottom:16px;line-height:1.6;padding:12px 14px;background:var(--bg);border-radius:8px;border:1px solid var(--border);"></div>
+      <div id="predictions-grid" class="bests-grid"></div>
+      <div id="predictions-generated-at" style="font-size:11px;color:var(--text-sec);margin-top:10px;text-align:right;"></div>
+    </div>
+
+    <div id="predictions-empty" style="font-size:13px;color:var(--text-sec);padding:16px 0 4px;">
+      No predictions yet. Click <strong>Generate</strong> to let your coach analyse your training and predict your race potential.
     </div>
   </div>
 
@@ -129,6 +254,7 @@
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 <script src="/js/api.js"></script>
 <script src="/js/auth.js"></script>
 <script src="/js/profile.js"></script>

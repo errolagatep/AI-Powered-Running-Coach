@@ -49,7 +49,7 @@ def register(data: UserRegister, supabase: Client = Depends(get_supabase)):
 def login(data: UserLogin, supabase: Client = Depends(get_supabase)):
     result = supabase.table("users").select("*").eq("email", data.email).execute()
     if not result.data:
-        raise HTTPException(status_code=401, detail="Invalid email or password")
+        raise HTTPException(status_code=404, detail="No account found with that email. Please register first.")
 
     user_raw = result.data[0]
     if not user_raw.get("password_hash"):

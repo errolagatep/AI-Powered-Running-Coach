@@ -116,9 +116,7 @@ function renderStats() {
 function runCard(run) {
   const effort  = run.effort_level;
   const cls     = effortClass(effort);
-  const hrs     = Math.floor(run.duration_min / 60);
-  const mins    = Math.round(run.duration_min % 60);
-  const durStr  = hrs > 0 ? `${hrs}h ${mins}m` : `${mins} min`;
+  const durStr  = formatDuration(run.duration_min);
   const hrStr   = run.heart_rate_avg ? `${run.heart_rate_avg} bpm` : "—";
   const stravaTag = run.strava_activity_id ? `<span class="strava-tag">Strava</span>` : "";
 

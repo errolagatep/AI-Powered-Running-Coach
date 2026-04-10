@@ -33,6 +33,7 @@
     if (!res.ok) throw new Error("auth failed");
     const user = await res.json();
     localStorage.setItem("user", JSON.stringify(user));
+    localStorage.setItem("strava_sync_on_load", "1");
     window.location.href = user.onboarding_complete ? "/dashboard.html" : "/onboarding.html";
   } catch (e) {
     document.getElementById("msg").textContent = "Sign-in failed. Redirecting…";

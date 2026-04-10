@@ -1,9 +1,14 @@
 document.addEventListener("DOMContentLoaded", () => {
   if (!requireAuth()) return;
 
-  // Default date to today
-  const today = new Date().toISOString().split("T")[0];
-  document.getElementById("run-date").value = today;
+  // Flatpickr date picker — default to today, no future dates allowed
+  flatpickr("#run-date", {
+    maxDate: "today",
+    defaultDate: "today",
+    dateFormat: "Y-m-d",
+    disableMobile: true,
+    allowInput: false,
+  });
 
   // Pace preview updates
   ["run-distance", "run-dur-min", "run-dur-sec"].forEach(id => {

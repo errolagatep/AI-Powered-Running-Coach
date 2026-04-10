@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Let's Get Started — Takbo Running Coach</title>
   <link rel="stylesheet" href="/css/style.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
 </head>
 <body class="onboarding-page">
 
@@ -140,7 +141,7 @@
         <div class="ob-body-row" style="margin-top:20px;">
           <div class="form-group">
             <label class="ob-field-label" for="race-date">Race date</label>
-            <input class="form-control ob-input-lg" type="date" id="race-date" />
+            <input class="form-control ob-input-lg" type="text" id="race-date" placeholder="Select race date" readonly />
           </div>
           <div class="form-group">
             <label class="ob-field-label">Target time <span class="ob-optional">optional</span></label>
@@ -259,9 +260,21 @@
     <!-- ── Step 6: Body + Injuries ── -->
     <div class="onboarding-step" id="step-6">
       <h2 class="step-title">A couple of optional details</h2>
-      <p class="step-hint">Helps fine-tune intensity. Skip anything you don't know.</p>
+      <p class="step-hint">Helps fine-tune your coaching. Skip anything you prefer not to share.</p>
 
       <div class="ob-body-row">
+        <div class="form-group">
+          <label class="ob-field-label" for="body-birthdate">Date of Birth <span class="ob-optional">optional</span></label>
+          <input class="form-control ob-input-lg" type="text" id="body-birthdate" placeholder="Select your date of birth" readonly />
+        </div>
+        <div class="form-group">
+          <label class="ob-field-label" for="body-height">Height <span class="ob-optional">cm</span></label>
+          <input class="form-control ob-input-lg" type="number" id="body-height"
+            placeholder="e.g. 170" min="100" max="250" step="0.1" />
+        </div>
+      </div>
+
+      <div class="ob-body-row" style="margin-top:16px;">
         <div class="form-group">
           <label class="ob-field-label" for="body-weight">Weight <span class="ob-optional">kg</span></label>
           <input class="form-control ob-input-lg" type="number" id="body-weight"
@@ -275,9 +288,16 @@
       </div>
 
       <div class="form-group" style="margin-top:20px;">
-        <label class="ob-field-label" for="injury-history">Past injuries <span class="ob-optional">optional</span></label>
-        <textarea class="form-control ob-textarea" id="injury-history" rows="3"
-          placeholder="e.g. Left knee pain, shin splints last year…"></textarea>
+        <label class="ob-field-label" for="injury-history">Past or current injuries <span class="ob-optional">optional</span></label>
+        <textarea class="form-control ob-textarea" id="injury-history" rows="2"
+          placeholder="e.g. Left knee pain, shin splints last year, plantar fasciitis…"></textarea>
+      </div>
+
+      <div class="form-group" style="margin-top:16px;">
+        <label class="ob-field-label" for="ob-medications">Current medications <span class="ob-optional">optional</span></label>
+        <div class="ob-field-hint">Some medications affect heart rate, hydration, and performance. Your coach will factor these in.</div>
+        <textarea class="form-control ob-textarea" id="ob-medications" rows="2"
+          placeholder="e.g. Beta-blockers, blood thinners, asthma inhaler… or 'none'"></textarea>
       </div>
 
       <button class="btn btn-primary ob-continue-btn" id="analyze-btn" onclick="submitAssessment()">
@@ -326,6 +346,7 @@
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 <script src="/js/api.js"></script>
 <script src="/js/auth.js"></script>
 <script src="/js/onboarding.js"></script>

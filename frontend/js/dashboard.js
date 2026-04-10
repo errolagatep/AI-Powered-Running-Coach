@@ -1,9 +1,24 @@
+// Init Flatpickr for the edit-run modal date field (no future dates on a logged run)
+const _editDatePicker = flatpickr("#edit-date", {
+  maxDate: "today",
+  dateFormat: "Y-m-d",
+  disableMobile: true,
+  allowInput: false,
+});
+
 document.addEventListener("DOMContentLoaded", async () => {
   if (!requireAuth()) return;
 
   const user = getUser();
   if (user) {
     document.getElementById("welcome-msg").textContent = `Welcome back, ${user.name.split(" ")[0]}!`;
+  }
+
+  // Auto-sync Strava silently on first load after login/relogin
+  const shouldSync = localStorage.getItem("strava_sync_on_load") === "1";
+  if (shouldSync) {
+    localStorage.removeItem("strava_sync_on_load");
+    _silentStravaSync();
   }
 
   try {
@@ -18,6 +33,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     renderStats(progress, runs);
     renderGoalBanner(goal);
+    renderProfileIncompleteBanner();
+    renderWeeklyRecap(runs, plan, gam);
     renderTodayWorkout(plan);
     renderRuns(runs);
     if (gam) renderGamification(gam);
@@ -26,6 +43,26 @@ document.addEventListener("DOMContentLoaded", async () => {
     console.error(err);
   }
 });
+
+async function _silentStravaSync() {
+  try {
+    const status = await api.get("/integrations/strava/status");
+    if (!status.connected) return;
+    const result = await api.post("/integrations/strava/sync", {});
+    if (result.imported > 0) {
+      // Refresh run list to show newly synced runs
+      const runs = await api.get("/runs/?limit=10");
+      renderRuns(runs);
+      if (result.new_achievements?.length && typeof showAchievementToast === "function") {
+        result.new_achievements.forEach((a, i) => {
+          setTimeout(() => showAchievementToast(a), 800 + i * 800);
+        });
+      }
+    }
+  } catch (_) {
+    // Silent — never surface Strava sync errors on login
+  }
+}
 
 // Standalone loadRuns — called by integrations.js after Strava sync
 async function loadRuns() {
@@ -39,6 +76,131 @@ async function loadRuns() {
     console.error(err);
     document.getElementById("runs-loading").classList.add("hidden");
   }
+}
+
+// ── Profile incomplete prompt ──────────────────────────────────
+function renderProfileIncompleteBanner() {
+  const user = getUser();
+  const wasSkipped = localStorage.getItem("show_profile_prompt") === "1";
+  if (wasSkipped) localStorage.removeItem("show_profile_prompt");
+  if (!user || (user.onboarding_complete && !wasSkipped)) return;
+  const el = document.getElementById("profile-incomplete-banner");
+  el.innerHTML = `
+    <div class="coach-prompt-card">
+      <div class="coach-prompt-avatar">🏃</div>
+      <div class="coach-prompt-body">
+        <div class="coach-prompt-title">Complete your runner profile</div>
+        <div class="coach-prompt-msg">Your coaching feedback and training plans will be much more accurate once I know more about you. It only takes 2 minutes!</div>
+        <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap;">
+          <a href="/onboarding.html" class="btn btn-primary" style="font-size:13px;padding:7px 16px;">Complete Onboarding</a>
+          <a href="/profile.html" class="btn btn-secondary" style="font-size:13px;padding:7px 16px;">Edit Profile</a>
+        </div>
+      </div>
+    </div>`;
+  el.classList.remove("hidden");
+}
+
+// ── Weekly Recap ───────────────────────────────────────────────
+function renderWeeklyRecap(runs, planData, gam) {
+  const el = document.getElementById("weekly-recap");
+
+  // Determine current week bounds (Mon–Sun)
+  const now = new Date();
+  const dayOfWeek = now.getDay(); // 0=Sun
+  const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  const monday = new Date(now);
+  monday.setDate(now.getDate() + mondayOffset);
+  monday.setHours(0, 0, 0, 0);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  sunday.setHours(23, 59, 59, 999);
+
+  const weekRuns = runs.filter(r => {
+    const d = new Date(r.date);
+    return d >= monday && d <= sunday;
+  });
+
+  const weekKm    = weekRuns.reduce((s, r) => s + r.distance_km, 0);
+  const weekCount = weekRuns.length;
+  const streak    = gam ? gam.current_streak : 0;
+
+  // Plan context: how many non-rest days are scheduled this week?
+  let plannedDays = 0, plannedKm = 0, plannedWorkouts = [];
+  const DAY_NAMES = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+  if (planData?.plan?.days) {
+    planData.plan.days.forEach(d => {
+      if (!["Rest","Active Recovery"].includes(d.workout_type)) {
+        plannedDays++;
+        plannedKm += (d.distance_km || 0);
+        plannedWorkouts.push(d.workout_type);
+      }
+    });
+  }
+
+  // Days remaining in the week (including today)
+  const daysLeft = 7 - (dayOfWeek === 0 ? 6 : dayOfWeek - 1);
+
+  // Progress ratio (capped at 1)
+  const progress = plannedDays > 0 ? Math.min(weekCount / plannedDays, 1) : null;
+  const kmProgress = plannedKm > 0 ? Math.min(weekKm / plannedKm, 1) : null;
+
+  // Motivational message
+  let emoji, headline, subline;
+  if (weekCount === 0) {
+    emoji = "💪"; headline = "Week is just getting started!";
+    subline = daysLeft <= 2
+      ? "Still time to get a run in — every kilometre counts."
+      : "Your first run of the week sets the tone. Lace up!";
+  } else if (progress !== null && progress >= 1) {
+    emoji = "🔥"; headline = "You've hit your planned workouts — incredible!";
+    subline = "Every session done. Rest up and come back stronger next week.";
+  } else if (progress !== null && progress >= 0.6) {
+    emoji = "⭐"; headline = "Strong week — keep the momentum going!";
+    subline = `${weekCount} of ${plannedDays} planned runs done. ${daysLeft > 0 ? `${daysLeft} day${daysLeft !== 1 ? "s" : ""} left to finish strong.` : ""}`;
+  } else if (streak >= 3) {
+    emoji = "🔥"; headline = `${streak}-day streak — you're on fire!`;
+    subline = "Consistency is your superpower. Keep showing up.";
+  } else if (weekCount >= 2) {
+    emoji = "📈"; headline = "Good momentum this week!";
+    subline = `${weekKm.toFixed(1)} km logged so far. ${plannedKm > 0 ? `Target: ${plannedKm.toFixed(1)} km.` : "Keep building."}`;
+  } else {
+    emoji = "🌅"; headline = `${weekCount} run down this week — nice start!`;
+    subline = "Every run builds the habit. One more this week would be great.";
+  }
+
+  // Progress bar percentage for km
+  const barPct = kmProgress !== null ? Math.round(kmProgress * 100) : null;
+
+  el.innerHTML = `
+    <div class="weekly-recap-card">
+      <div class="weekly-recap-header">
+        <div>
+          <div class="weekly-recap-eyebrow">This Week</div>
+          <div class="weekly-recap-headline">${emoji} ${headline}</div>
+          <div class="weekly-recap-sub">${subline}</div>
+        </div>
+      </div>
+      <div class="weekly-recap-metrics">
+        <div class="recap-metric">
+          <div class="recap-metric-val">${weekCount}</div>
+          <div class="recap-metric-lbl">Runs${plannedDays > 0 ? ` / ${plannedDays} planned` : ""}</div>
+        </div>
+        <div class="recap-metric">
+          <div class="recap-metric-val">${weekKm.toFixed(1)}</div>
+          <div class="recap-metric-lbl">km${plannedKm > 0 ? ` / ${plannedKm.toFixed(1)} target` : " this week"}</div>
+        </div>
+        ${streak > 0 ? `<div class="recap-metric">
+          <div class="recap-metric-val">${streak}</div>
+          <div class="recap-metric-lbl">day streak 🔥</div>
+        </div>` : ""}
+      </div>
+      ${barPct !== null ? `
+      <div class="recap-progress-wrap">
+        <div class="recap-progress-bar" style="width:${barPct}%"></div>
+      </div>
+      <div style="font-size:11px;color:var(--text-sec);margin-top:4px;">${barPct}% of weekly km target</div>` : ""}
+    </div>`;
+  el.classList.remove("hidden");
 }
 
 function renderStats(progress, runs) {
@@ -184,9 +346,7 @@ function renderRuns(runs) {
 function runCard(run) {
   const effort  = run.effort_level;
   const cls     = effortClass(effort);
-  const hrs     = Math.floor(run.duration_min / 60);
-  const mins    = Math.round(run.duration_min % 60);
-  const durStr  = hrs > 0 ? `${hrs}h ${mins}m` : `${mins} min`;
+  const durStr  = formatDuration(run.duration_min);
   const hrStr   = run.heart_rate_avg ? `${run.heart_rate_avg} bpm` : "—";
   const stravaTag = run.strava_activity_id ? `<span class="strava-tag">Strava</span>` : "";
 
@@ -319,7 +479,7 @@ function openEditModal(runId) {
   if (!run) return;
 
   // Populate fields
-  document.getElementById("edit-date").value     = run.date.split("T")[0];
+  _editDatePicker.setDate(run.date.split("T")[0], false);
   document.getElementById("edit-distance").value = run.distance_km;
   const totalMin = run.duration_min;
   document.getElementById("edit-dur-min").value  = Math.floor(totalMin);

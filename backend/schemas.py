@@ -28,6 +28,7 @@ class UserResponse(BaseModel):
     max_hr: Optional[int] = None
     age: Optional[int] = None
     height_cm: Optional[float] = None
+    birthdate: Optional[str] = None
     avatar_url: Optional[str] = None
     created_at: datetime
     onboarding_complete: bool = False
@@ -36,6 +37,7 @@ class UserResponse(BaseModel):
 class ProfileUpdate(BaseModel):
     name: Optional[str] = None
     age: Optional[int] = None
+    birthdate: Optional[str] = None   # ISO date string: "YYYY-MM-DD"
     height_cm: Optional[float] = None
     weight_kg: Optional[float] = None
     max_hr: Optional[int] = None
@@ -116,11 +118,14 @@ class AssessmentCreate(BaseModel):
     weekly_km: float            # km/week currently
     primary_goal: str           # 'fitness' | 'speed' | 'endurance' | 'race_prep' | 'weight_loss'
     injury_history: Optional[str] = None
+    medications: Optional[str] = None
     available_days: int         # 1–7
     preferred_distance: str     # 'short' | 'medium' | 'long' | 'mixed'
     load_capacity: str          # 'low' | 'moderate' | 'high'
     weight_kg: Optional[float] = None
     max_hr: Optional[int] = None
+    height_cm: Optional[float] = None
+    birthdate: Optional[str] = None      # ISO date string e.g. '1995-04-20'
     ai_followup_a: Optional[str] = None  # answer to Claude's follow-up question
     race_type: Optional[str] = None      # '5K' | '10K' | 'Half Marathon' | 'Marathon'
     race_date: Optional[str] = None      # ISO date string e.g. '2025-10-12'
@@ -138,6 +143,7 @@ class AssessmentResponse(BaseModel):
     weekly_km: float
     primary_goal: str
     injury_history: Optional[str] = None
+    medications: Optional[str] = None
     available_days: int
     preferred_distance: str
     load_capacity: str

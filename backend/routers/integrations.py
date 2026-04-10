@@ -1,20 +1,25 @@
 import os
+import logging
 from datetime import datetime, timezone
 from urllib.parse import urlencode
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import RedirectResponse
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.responses import RedirectResponse, JSONResponse
 from supabase import Client
 
 from ..auth import create_access_token, decode_token, get_current_user
 from ..database import get_supabase
+from .runs import _recalculate_gamification, _sync_achievements
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/integrations", tags=["integrations"])
 
 STRAVA_CLIENT_ID = os.getenv("STRAVA_CLIENT_ID", "")
 STRAVA_CLIENT_SECRET = os.getenv("STRAVA_CLIENT_SECRET", "")
 STRAVA_REDIRECT_URI = os.getenv("STRAVA_REDIRECT_URI", "http://localhost:8000/api/integrations/strava/callback")
+STRAVA_WEBHOOK_VERIFY_TOKEN = os.getenv("STRAVA_WEBHOOK_VERIFY_TOKEN", "takbo_strava_verify")
 
 
 # ── Strava OAuth ──────────────────────────────────────────────────────────────
@@ -60,12 +65,13 @@ def strava_callback(
         return RedirectResponse(url="/dashboard.html?strava=error")
 
     # Exchange code for Strava tokens
-    res = httpx.post("https://www.strava.com/oauth/token", data={
-        "client_id": STRAVA_CLIENT_ID,
-        "client_secret": STRAVA_CLIENT_SECRET,
-        "code": code,
-        "grant_type": "authorization_code",
-    })
+    with httpx.Client() as client:
+        res = client.post("https://www.strava.com/oauth/token", data={
+            "client_id": STRAVA_CLIENT_ID,
+            "client_secret": STRAVA_CLIENT_SECRET,
+            "code": code,
+            "grant_type": "authorization_code",
+        })
     token_data = res.json()
     if "access_token" not in token_data:
         return RedirectResponse(url="/dashboard.html?strava=error")
@@ -102,12 +108,13 @@ def _refresh_strava_token(token_row: dict, supabase: Client) -> str:
     if now < expires_at:
         return token_row["access_token"]
 
-    res = httpx.post("https://www.strava.com/oauth/token", data={
-        "client_id": STRAVA_CLIENT_ID,
-        "client_secret": STRAVA_CLIENT_SECRET,
-        "refresh_token": token_row["refresh_token"],
-        "grant_type": "refresh_token",
-    })
+    with httpx.Client() as client:
+        res = client.post("https://www.strava.com/oauth/token", data={
+            "client_id": STRAVA_CLIENT_ID,
+            "client_secret": STRAVA_CLIENT_SECRET,
+            "refresh_token": token_row["refresh_token"],
+            "grant_type": "refresh_token",
+        })
     data = res.json()
     if "access_token" not in data:
         raise HTTPException(status_code=401, detail="Failed to refresh Strava token. Please reconnect Strava.")
@@ -151,11 +158,12 @@ def strava_sync(
     access_token = _refresh_strava_token(token_row, supabase)
 
     # Fetch up to 50 recent activities from Strava
-    activities_res = httpx.get(
-        "https://www.strava.com/api/v3/athlete/activities",
-        headers={"Authorization": f"Bearer {access_token}"},
-        params={"per_page": 50, "page": 1},
-    )
+    with httpx.Client() as client:
+        activities_res = client.get(
+            "https://www.strava.com/api/v3/athlete/activities",
+            headers={"Authorization": f"Bearer {access_token}"},
+            params={"per_page": 50, "page": 1},
+        )
     if activities_res.status_code != 200:
         raise HTTPException(status_code=502, detail="Failed to fetch Strava activities")
 
@@ -222,7 +230,52 @@ def strava_sync(
         }).execute()
         imported += 1
 
-    return {"imported": imported, "skipped": skipped, "total_fetched": len(run_activities)}
+    joined_date = str(current_user.get("created_at", ""))[:10] or None
+
+    try:
+        _recalculate_gamification(current_user["id"], supabase)
+    except Exception as e:
+        logger.error("_recalculate_gamification failed: %s", e, exc_info=True)
+
+    new_achievements = []
+    try:
+        new_achievements = _sync_achievements(current_user["id"], supabase, joined_date=joined_date)
+    except Exception as e:
+        logger.error("_sync_achievements failed: %s", e, exc_info=True)
+
+    return {
+        "imported": imported,
+        "skipped": skipped,
+        "total_fetched": len(run_activities),
+        "new_achievements": new_achievements,
+    }
+
+
+# ── Strava Webhook ───────────────────────────────────────────────────────────
+# Strava calls GET /webhook to verify the subscription endpoint during setup.
+# It passes hub.mode, hub.verify_token, and hub.challenge.
+# We must echo back {"hub.challenge": <value>} if the verify_token matches.
+
+@router.get("/strava/webhook")
+def strava_webhook_verify(
+    hub_mode: str = Query(None, alias="hub.mode"),
+    hub_verify_token: str = Query(None, alias="hub.verify_token"),
+    hub_challenge: str = Query(None, alias="hub.challenge"),
+):
+    """Strava webhook subscription verification endpoint."""
+    if hub_mode == "subscribe" and hub_verify_token == STRAVA_WEBHOOK_VERIFY_TOKEN:
+        return JSONResponse(content={"hub.challenge": hub_challenge})
+    raise HTTPException(status_code=403, detail="Webhook verification failed")
+
+
+@router.post("/strava/webhook")
+async def strava_webhook_event(request: Request):
+    """Receive Strava webhook event notifications (activity created/updated/deleted).
+    Currently just acknowledges — processing is done via manual sync.
+    """
+    # Strava expects a 200 response within 2 seconds.
+    # We acknowledge immediately; athletes can use Sync Runs to pull latest data.
+    return JSONResponse(content={"status": "ok"})
 
 
 @router.delete("/strava/disconnect")

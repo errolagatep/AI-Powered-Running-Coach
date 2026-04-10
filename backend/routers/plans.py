@@ -5,6 +5,7 @@ import json
 from ..database import get_supabase
 from ..auth import get_current_user
 from ..coach import generate_weekly_plan, generate_workout_variation, _fmt_pace
+from .runs import _compute_personal_bests
 from ..schemas import PlanRescheduleRequest
 
 router = APIRouter(prefix="/api/plans", tags=["plans"])
@@ -134,11 +135,14 @@ def create_plan(
     )
     assessment = assessment_result.data[0] if assessment_result.data else None
 
+    personal_bests = _compute_personal_bests(current_user["id"], supabase)
+
     plan_data = generate_weekly_plan(
         recent_runs=recent_result.data,
         goal=goal,
         user_name=current_user["name"],
         assessment=assessment,
+        personal_bests=personal_bests,
     )
 
     result = supabase.table("training_plans").insert({
@@ -308,12 +312,15 @@ def recalibrate_plan(
         for r in recent_result.data
     ]
 
+    personal_bests = _compute_personal_bests(current_user["id"], supabase)
+
     plan_data = generate_weekly_plan(
         recent_runs=recent_runs,
         goal=goal,
         user_name=current_user["name"],
         assessment=assessment,
         coach_notes=coach_notes or None,
+        personal_bests=personal_bests,
     )
 
     result = supabase.table("training_plans").insert({

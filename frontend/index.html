@@ -111,6 +111,7 @@
       });
       localStorage.setItem("token", data.access_token);
       localStorage.setItem("user", JSON.stringify(data.user));
+      localStorage.setItem("strava_sync_on_load", "1");
       window.location.href = "/dashboard.html";
     } catch (err) {
       showError(err.message);

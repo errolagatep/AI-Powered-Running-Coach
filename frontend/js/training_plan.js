@@ -6,6 +6,14 @@ let weekRunsById = {};       // run.id → run object (safe onclick lookup)
 
 document.addEventListener("DOMContentLoaded", async () => {
   if (!requireAuth()) return;
+
+  flatpickr("#race-date", {
+    minDate: "today",
+    dateFormat: "Y-m-d",
+    disableMobile: true,
+    allowInput: false,
+  });
+
   await loadGoal();
   await loadPlan();
 });

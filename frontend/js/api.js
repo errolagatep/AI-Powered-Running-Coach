@@ -11,10 +11,18 @@ async function apiRequest(method, path, body = null) {
   const response = await fetch(`${API_BASE}${path}`, options);
 
   if (response.status === 401) {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    window.location.href = "/index.html";
-    return;
+    // On the login/register page, let the error bubble up so the form can show it.
+    // Anywhere else, the token is expired/invalid — clear it and redirect.
+    const isAuthPage = window.location.pathname === "/index.html" || window.location.pathname === "/";
+    if (!isAuthPage) {
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+      window.location.href = "/index.html";
+      return;
+    }
+    let errData;
+    try { errData = await response.json(); } catch { errData = {}; }
+    throw new Error(errData.detail || "Invalid email or password");
   }
 
   if (response.status === 204) return null;

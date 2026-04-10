@@ -30,6 +30,20 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   updateTopbar();
+
+  flatpickr("#body-birthdate", {
+    maxDate: "today",
+    dateFormat: "Y-m-d",
+    disableMobile: true,
+    allowInput: false,
+  });
+
+  flatpickr("#race-date", {
+    minDate: "today",
+    dateFormat: "Y-m-d",
+    disableMobile: true,
+    allowInput: false,
+  });
 });
 
 // ── Progress topbar ───────────────────────────────────────────
@@ -238,10 +252,15 @@ function clearError() {
 async function submitAssessment() {
   clearError();
   state.injury_history = document.getElementById("injury-history").value.trim() || null;
-  const w = document.getElementById("body-weight").value;
-  const h = document.getElementById("body-maxhr").value;
-  state.weight_kg = w ? parseFloat(w) : null;
-  state.max_hr    = h ? parseInt(h)   : null;
+  state.medications    = document.getElementById("ob-medications").value.trim() || null;
+  const w  = document.getElementById("body-weight").value;
+  const hr = document.getElementById("body-maxhr").value;
+  const bd = document.getElementById("body-birthdate").value;
+  const ht = document.getElementById("body-height").value;
+  state.weight_kg  = w  ? parseFloat(w)  : null;
+  state.max_hr     = hr ? parseInt(hr)   : null;
+  state.birthdate  = bd || null;
+  state.height_cm  = ht ? parseFloat(ht) : null;
 
   const btn = document.getElementById("analyze-btn");
   btn.disabled = true;
@@ -270,11 +289,14 @@ async function submitAssessment() {
       race_date:          state.race_date,
       target_time_min:    state.target_time_min,
       injury_history:     state.injury_history,
+      medications:        state.medications,
       available_days:     state.available_days,
       preferred_distance: state.preferred_distance,
       load_capacity:      state.load_capacity,
       weight_kg:          state.weight_kg,
       max_hr:             state.max_hr,
+      birthdate:          state.birthdate,
+      height_cm:          state.height_cm,
     });
 
     clearInterval(ticker);
@@ -354,5 +376,7 @@ async function generatePlan() {
 
 // ── Skip ──────────────────────────────────────────────────────
 function skipOnboarding() {
+  // Signal dashboard to show the "complete your profile" prompt
+  localStorage.setItem("show_profile_prompt", "1");
   window.location.href = "/dashboard.html";
 }

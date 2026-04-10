@@ -1568,6 +1568,7 @@ input[type="range"]::-webkit-slider-thumb {
 /* ── Field label ── */
 .ob-field-label { display: block; font-size: 13px; font-weight: 700; color: var(--text-sec); margin-bottom: 10px; }
 .ob-optional    { font-weight: 400; opacity: .55; }
+.ob-field-hint  { font-size: 12px; color: var(--text-sec); margin-bottom: 6px; line-height: 1.4; }
 
 /* ── Large input ── */
 .ob-input-lg {
@@ -2295,5 +2296,228 @@ html { scroll-behavior: smooth; }
   .stats-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
   .stat-card { padding: 14px 16px; }
   .stat-value { font-size: 26px; }
+}
+
+/* ── Flatpickr theme overrides ───────────────────────────────────────────── */
+.flatpickr-calendar {
+  border-radius: 12px !important;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.12) !important;
+  border: 1px solid var(--border) !important;
+  font-family: inherit !important;
+}
+.flatpickr-day.selected,
+.flatpickr-day.selected:hover {
+  background: var(--accent) !important;
+  border-color: var(--accent) !important;
+}
+.flatpickr-day:hover {
+  background: rgba(249,115,22,0.1) !important;
+}
+.flatpickr-months .flatpickr-month,
+.flatpickr-weekdays,
+span.flatpickr-weekday {
+  background: var(--card) !important;
+  color: var(--text) !important;
+}
+.flatpickr-current-month .flatpickr-monthDropdown-months,
+.flatpickr-current-month input.cur-year {
+  color: var(--text) !important;
+  font-weight: 700 !important;
+}
+.flatpickr-day.flatpickr-disabled,
+.flatpickr-day.flatpickr-disabled:hover {
+  color: var(--border) !important;
+  cursor: not-allowed !important;
+}
+.flatpickr-day.today { border-color: var(--accent) !important; }
+
+/* ── Weekly Recap Card ────────────────────────────────────────────────────── */
+.weekly-recap-card {
+  background: linear-gradient(135deg, #F0FDF4 0%, #ECFDF5 100%);
+  border: 1px solid rgba(34,197,94,0.25);
+  border-radius: var(--radius);
+  padding: 20px 22px 18px;
+  box-shadow: 0 2px 10px rgba(34,197,94,0.08);
+}
+.weekly-recap-eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent2);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  margin-bottom: 4px;
+}
+.weekly-recap-headline {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+.weekly-recap-sub {
+  font-size: 13px;
+  color: var(--text-sec);
+  margin-bottom: 14px;
+}
+.weekly-recap-metrics {
+  display: flex;
+  gap: 28px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.recap-metric-val {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--accent2);
+  line-height: 1;
+}
+.recap-metric-lbl {
+  font-size: 11px;
+  color: var(--text-sec);
+  margin-top: 3px;
+}
+.recap-progress-wrap {
+  height: 6px;
+  background: rgba(34,197,94,0.15);
+  border-radius: 99px;
+  overflow: hidden;
+  margin-top: 10px;
+}
+.recap-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #22C55E, #16A34A);
+  border-radius: 99px;
+  transition: width .6s ease;
+}
+
+/* ── Coach prompt card (profile incomplete banner) ────────────────────────── */
+.coach-prompt-card {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  background: linear-gradient(135deg, #FFF7ED, #FFFBF5);
+  border: 1px solid rgba(249,115,22,0.3);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  box-shadow: 0 2px 10px rgba(249,115,22,0.08);
+}
+.coach-prompt-avatar {
+  font-size: 28px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.coach-prompt-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+.coach-prompt-msg {
+  font-size: 13px;
+  color: var(--text-sec);
+  line-height: 1.5;
+}
+
+/* ── Personal Bests section ───────────────────────────────────────────────── */
+.bests-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+.best-card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 14px 12px;
+  text-align: center;
+}
+.best-card-race {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  margin-bottom: 6px;
+}
+.best-card-time {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--text);
+  line-height: 1;
+  margin-bottom: 4px;
+}
+.best-card-date {
+  font-size: 11px;
+  color: var(--text-sec);
+}
+
+/* ── Personal Bests manual input table ──────────────────────────────────────── */
+.pb-table {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.pb-header-row {
+  display: grid;
+  grid-template-columns: 120px 1fr 1fr;
+  gap: 10px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-sec);
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+.pb-row {
+  display: grid;
+  grid-template-columns: 120px 1fr 1fr;
+  gap: 10px;
+  align-items: center;
+}
+.pb-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+.pb-time-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.pb-time-wrap .pb-h {
+  width: 52px;
+  text-align: center;
+  padding: 7px 6px;
+}
+.pb-time-wrap .pb-ms {
+  width: 52px;
+  text-align: center;
+  padding: 7px 6px;
+}
+.pb-sep {
+  font-weight: 700;
+  color: var(--text-sec);
+  flex-shrink: 0;
+}
+.pb-date {
+  padding: 7px 8px;
+  font-size: 13px;
+}
+@media (max-width: 520px) {
+  .pb-header-row,
+  .pb-row {
+    grid-template-columns: 90px 1fr;
+    grid-template-rows: auto auto;
+  }
+  .pb-header-row span:last-child,
+  .pb-row .pb-date {
+    grid-column: 2;
+  }
+  .pb-header-row span:first-child,
+  .pb-row .pb-label {
+    grid-row: 1 / span 2;
+    align-self: center;
+  }
 }
 

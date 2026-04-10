@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Dashboard — Takbo Running Coach</title>
   <link rel="stylesheet" href="/css/style.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 </head>
 <body>
@@ -98,6 +99,12 @@
   <!-- Achievement toast container -->
   <div id="toast-container"></div>
 
+  <!-- Profile incomplete prompt -->
+  <div id="profile-incomplete-banner" class="hidden" style="margin-bottom:20px;"></div>
+
+  <!-- Weekly Recap -->
+  <div id="weekly-recap" class="hidden" style="margin-bottom:28px;"></div>
+
   <!-- Today's Workout -->
   <div id="today-workout" class="hidden" style="margin-bottom:28px;"></div>
 
@@ -150,7 +157,7 @@
     <div class="form-row">
       <div class="form-group">
         <label for="edit-date">Date</label>
-        <input class="form-control" type="date" id="edit-date" />
+        <input class="form-control" type="text" id="edit-date" placeholder="Select date" readonly />
       </div>
       <div class="form-group">
         <label for="edit-distance">Distance (km)</label>
@@ -196,6 +203,7 @@
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 <script src="/js/api.js"></script>
 <script src="/js/auth.js"></script>
 <script src="/js/integrations.js"></script>

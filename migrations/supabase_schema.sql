@@ -126,3 +126,32 @@ CREATE INDEX IF NOT EXISTS idx_achievements_user ON achievements(user_id);
 ALTER TABLE runner_assessments  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_gamification   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE achievements        ENABLE ROW LEVEL SECURITY;
+
+
+-- ============================================================
+-- Incremental migrations (run these after the initial schema)
+-- ============================================================
+
+-- Fields added after initial schema (skip if already present):
+ALTER TABLE users ADD COLUMN IF NOT EXISTS age        INTEGER;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS height_cm  FLOAT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS birthdate  DATE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id  TEXT;
+
+-- Health info in assessments
+ALTER TABLE runner_assessments ADD COLUMN IF NOT EXISTS medications TEXT;
+
+-- Strava integration
+ALTER TABLE run_logs ADD COLUMN IF NOT EXISTS strava_activity_id BIGINT;
+ALTER TABLE run_logs ADD COLUMN IF NOT EXISTS route_polyline     TEXT;
+
+CREATE TABLE IF NOT EXISTS strava_tokens (
+    id            UUID        DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id       UUID        NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+    access_token  TEXT        NOT NULL,
+    refresh_token TEXT        NOT NULL,
+    expires_at    TIMESTAMPTZ NOT NULL,
+    athlete_id    BIGINT,
+    updated_at    TIMESTAMPTZ DEFAULT NOW()
+);
