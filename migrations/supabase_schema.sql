@@ -155,3 +155,38 @@ CREATE TABLE IF NOT EXISTS strava_tokens (
     athlete_id    BIGINT,
     updated_at    TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- ── Training Programs (full-duration periodized plans) ───────────────────────
+CREATE TABLE IF NOT EXISTS training_programs (
+    id            UUID        DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id       UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    goal_id       UUID        REFERENCES goals(id) ON DELETE SET NULL,
+    total_weeks   INTEGER     NOT NULL,
+    start_date    DATE        NOT NULL,
+    end_date      DATE        NOT NULL,
+    skeleton_json TEXT        NOT NULL,
+    status        TEXT        NOT NULL DEFAULT 'active',
+    created_at    TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_training_programs_user
+    ON training_programs (user_id, created_at DESC);
+
+ALTER TABLE training_programs ENABLE ROW LEVEL SECURITY;
+
+-- Link weekly plans to their parent program
+ALTER TABLE training_plans ADD COLUMN IF NOT EXISTS program_id   UUID REFERENCES training_programs(id) ON DELETE SET NULL;
+ALTER TABLE training_plans ADD COLUMN IF NOT EXISTS week_number  INTEGER;
+
+CREATE INDEX IF NOT EXISTS idx_training_plans_program
+    ON training_plans (program_id, week_number);
+
+-- Expand goals to support non-race goal types
+ALTER TABLE goals ADD COLUMN IF NOT EXISTS goal_type        TEXT NOT NULL DEFAULT 'race';
+ALTER TABLE goals ADD COLUMN IF NOT EXISTS goal_description TEXT;
+
+-- Non-race goal quantification targets
+-- target_unit: 'km_per_week' | 'pace_per_km' | 'long_run_km' | 'runs_per_week'
+ALTER TABLE goals ADD COLUMN IF NOT EXISTS target_value      FLOAT;
+ALTER TABLE goals ADD COLUMN IF NOT EXISTS target_unit       TEXT;
+ALTER TABLE goals ADD COLUMN IF NOT EXISTS target_weight_kg  FLOAT;

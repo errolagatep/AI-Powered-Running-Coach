@@ -573,6 +573,154 @@ def predict_race_times(
     return {}
 
 
+def generate_program_skeleton(
+    goal: dict,
+    total_weeks: int,
+    assessment: Optional[dict] = None,
+    user_name: str = "Athlete",
+    personal_bests: Optional[dict] = None,
+) -> list:
+    """Generate a multi-week periodization skeleton covering the full training duration.
+
+    Returns a list of WeekSkeleton dicts (one per week), ordered by week_number.
+    Each entry has: week_number, phase, focus, target_km, target_long_run_km, key_workout, notes.
+    Does NOT generate day-by-day detail — that is left to generate_weekly_plan().
+    """
+    context = f"Athlete: {user_name}\n"
+    if assessment:
+        context += _assessment_context(assessment) + "\n"
+    if personal_bests:
+        context += _personal_bests_context(personal_bests) + "\n"
+
+    context += f"\nGoal: {goal.get('race_type', 'Goal')} on {goal.get('end_date_str', goal.get('race_date', ''))}\n"
+    context += f"Training duration: {total_weeks} weeks (starting this Monday)\n"
+    if goal.get("target_time_min"):
+        context += f"Target time: {_fmt_time_min(goal['target_time_min'])}\n"
+    if goal.get("goal_description"):
+        context += f"Goal description: {goal['goal_description']}\n"
+
+    goal_type = goal.get("goal_type", "race")
+    if goal_type != "race":
+        context += f"Goal type: {goal_type}\n"
+
+    target_value = goal.get("target_value")
+    target_unit = goal.get("target_unit", "")
+    target_weight_kg = goal.get("target_weight_kg")
+    current_weight_kg = goal.get("current_weight_kg")
+
+    if goal_type == "fitness":
+        if target_value and target_unit == "km_per_week":
+            context += f"Fitness target: build to {target_value:.0f} km/week by end of program\n"
+        elif target_value and target_unit == "runs_per_week":
+            context += f"Fitness target: run {target_value:.0f} times per week consistently\n"
+        else:
+            context += "Fitness target: establish consistent running habit and improve aerobic base\n"
+
+    elif goal_type == "speed":
+        if target_value and target_unit == "pace_per_km":
+            m = int(target_value)
+            s = int(round((target_value - m) * 60))
+            context += f"Speed target: achieve {m}:{s:02d}/km pace at 5K distance\n"
+        else:
+            context += "Speed target: improve overall running pace through structured tempo and interval work\n"
+
+    elif goal_type == "endurance":
+        if target_value and target_unit == "long_run_km":
+            context += f"Endurance target: complete a {target_value:.0f} km long run by end of program\n"
+        else:
+            context += "Endurance target: progressively build long run distance and weekly volume\n"
+
+    elif goal_type == "weight_loss":
+        if target_weight_kg and current_weight_kg:
+            gap = current_weight_kg - target_weight_kg
+            if gap > 0:
+                weekly_deficit_kg = gap / total_weeks
+                km_needed = (weekly_deficit_kg * 7700) / 60  # ~7700 kcal/kg fat, ~60 kcal/km
+                context += (
+                    f"Weight loss target: {current_weight_kg:.1f} kg → {target_weight_kg:.1f} kg "
+                    f"({gap:.1f} kg over {total_weeks} weeks)\n"
+                    f"Estimated running contribution to weekly deficit: ~{km_needed:.0f} km/week\n"
+                    "Important: combine with diet changes; do not prescribe extreme mileage to compensate for diet alone\n"
+                    "Plan emphasis: Zone 2 aerobic running (60–70% max HR), frequency over intensity\n"
+                )
+        else:
+            context += "Weight loss target: build consistent aerobic running volume; Zone 2 emphasis for fat burning\n"
+
+    # Phase guidance depends on goal type
+    race_goals = {"race", "pb_attempt"}
+    if goal.get("goal_type", "race") in race_goals:
+        phase_instruction = (
+            "Use standard race periodization phases in this order: "
+            "Base Building → Build → Peak → Taper. "
+            "Taper should be the final 1–2 weeks (lighter volume, sharpening quality). "
+            "Peak is the highest-intensity block. "
+            "Base Building for the first 30–40% of weeks."
+        )
+    else:
+        phase_instruction = (
+            "Use these phases in order: Foundation → Progression → Consolidation. "
+            "Foundation: establish consistency and base aerobic fitness. "
+            "Progression: steadily increase volume and introduce quality sessions. "
+            "Consolidation: reinforce gains, maintain load, polish fitness."
+        )
+
+    skeleton_item_schema = {
+        "type": "object",
+        "properties": {
+            "week_number":        {"type": "integer"},
+            "phase":              {"type": "string"},
+            "focus":              {"type": "string"},
+            "target_km":         {"type": "number"},
+            "target_long_run_km": {"type": "number"},
+            "key_workout":       {"type": "string"},
+            "notes":             {"type": "string"},
+        },
+        "required": ["week_number", "phase", "focus", "target_km", "target_long_run_km", "key_workout", "notes"],
+        "additionalProperties": False,
+    }
+    skeleton_schema = json.dumps({"type": "array", "items": skeleton_item_schema}, indent=2)
+
+    response = get_client().messages.create(
+        model="claude-opus-4-6",
+        max_tokens=1800,
+        system=COACH_SYSTEM_PROMPT,
+        messages=[{
+            "role": "user",
+            "content": (
+                f"{context}\n\n"
+                f"Create a {total_weeks}-week training program skeleton. {phase_instruction}\n\n"
+                "For each week provide:\n"
+                "- week_number: 1-based integer\n"
+                "- phase: the periodization phase name\n"
+                "- focus: one sentence describing the week's training intent\n"
+                "- target_km: total weekly running distance in km (progressive overload — do NOT exceed 10% increase per week except in taper)\n"
+                "- target_long_run_km: distance of the longest run that week in km\n"
+                "- key_workout: name/description of the most important quality session (e.g. '5×1km intervals at 10K pace')\n"
+                "- notes: any specific coaching cues or cautions for that week (empty string if none)\n\n"
+                f"Respond with ONLY a valid JSON array of exactly {total_weeks} objects matching this schema (no markdown, no explanation):\n"
+                f"{skeleton_schema}"
+            ),
+        }],
+    )
+
+    for block in response.content:
+        if block.type == "text":
+            text = block.text.strip()
+            if text.startswith("```"):
+                text = text.split("```")[1]
+                if text.startswith("json"):
+                    text = text[4:]
+                text = text.strip()
+            try:
+                skeleton = json.loads(text)
+                if isinstance(skeleton, list) and len(skeleton) > 0:
+                    return skeleton
+            except json.JSONDecodeError:
+                break
+
+    raise ValueError("Skeleton generation failed — Claude returned invalid JSON")
+
+
 def generate_weekly_plan(
     recent_runs: list,
     goal: Optional[dict] = None,
@@ -580,6 +728,7 @@ def generate_weekly_plan(
     assessment: Optional[dict] = None,
     coach_notes: Optional[str] = None,
     personal_bests: Optional[dict] = None,
+    week_context: Optional[dict] = None,
 ) -> dict:
     """Generate a 7-day structured training plan as JSON."""
     total_km = sum(r["distance_km"] for r in recent_runs[-14:]) if recent_runs else 0
@@ -611,6 +760,24 @@ def generate_weekly_plan(
         context += f"\nGoal race: {goal['race_type']} in {weeks_until} weeks"
         if goal.get("target_time_min"):
             context += f" (target: {goal['target_time_min']:.0f} min)"
+
+    if week_context:
+        context += (
+            f"\n\n## Program Context\n"
+            f"This is Week {week_context['week_number']} of {week_context.get('total_weeks', '?')} "
+            f"in a full training program.\n"
+            f"Phase: {week_context['phase']}\n"
+            f"Weekly focus: {week_context['focus']}\n"
+            f"Target total km this week: {week_context['target_km']} km\n"
+            f"Target long run: {week_context['target_long_run_km']} km\n"
+            f"Key workout: {week_context['key_workout']}\n"
+        )
+        if week_context.get("notes"):
+            context += f"Coaching notes: {week_context['notes']}\n"
+        context += (
+            "IMPORTANT: The 7-day plan MUST align with the phase and target_km above. "
+            "Do not deviate significantly from the target km.\n"
+        )
 
     if coach_notes:
         context += f"\n\n## Coach Notes (incorporate these into the plan)\n{coach_notes}\n"

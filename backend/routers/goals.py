@@ -19,6 +19,8 @@ def set_goal(
         "race_type": data.race_type,
         "race_date": data.race_date.isoformat(),
         "target_time_min": data.target_time_min,
+        "goal_type": data.goal_type,
+        "goal_description": data.goal_description,
     }).execute()
     return GoalResponse.model_validate(result.data[0])
 
@@ -57,4 +59,11 @@ def delete_goal(
     if not existing.data:
         raise HTTPException(status_code=404, detail="Goal not found")
     supabase.table("goals").delete().eq("id", goal_id).execute()
+    # Abandon any active program that was built for this goal
+    supabase.table("training_programs")\
+        .update({"status": "abandoned"})\
+        .eq("goal_id", goal_id)\
+        .eq("user_id", current_user["id"])\
+        .eq("status", "active")\
+        .execute()
     return {"message": "Goal deleted"}

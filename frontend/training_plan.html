@@ -42,14 +42,28 @@
         <h1 style="font-size:26px;font-weight:800;letter-spacing:-.4px;">Weekly Training Plan</h1>
         <p style="color:var(--text-sec);margin-top:4px;">Personalised by Takbo Coach based on your training history and goals</p>
       </div>
-      <div style="display:flex;gap:10px;flex-wrap:wrap;flex-shrink:0;">
-        <button class="btn btn-secondary" id="recalibrate-btn" onclick="openRecalibrateModal()">🔄 Recalibrate from Efforts</button>
-        <button class="btn btn-primary" id="generate-btn" onclick="generatePlan()">✨ Generate New Plan</button>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;flex-shrink:0;" id="header-actions">
+        <button class="btn btn-secondary hidden" id="recalibrate-btn" onclick="openRecalibrateModal()">🔄 Recalibrate Week</button>
+        <button class="btn btn-secondary" id="program-btn" onclick="openProgramModal()">📅 Build Full Program</button>
+        <button class="btn btn-primary hidden" id="generate-btn" onclick="generatePlan()">✨ Quick Plan</button>
       </div>
     </div>
   </div>
 
   <div id="alert" class="alert alert-error hidden"></div>
+
+  <!-- Goal-changed nudge (shown when goal is updated while a program is active) -->
+  <div id="goal-changed-banner" class="hidden" style="margin-bottom:20px;">
+    <div class="card" style="border:1.5px solid var(--accent);padding:14px 18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+      <div style="font-size:14px;line-height:1.5;">
+        <strong>Goal updated.</strong> Your active program was built for your previous target — consider rebuilding it to stay on track.
+      </div>
+      <div style="display:flex;gap:8px;flex-shrink:0;">
+        <button class="btn btn-primary" style="font-size:13px;padding:6px 14px;" onclick="openProgramModal();dismissGoalChangedBanner()">Rebuild Program</button>
+        <button class="btn btn-secondary" style="font-size:13px;padding:6px 14px;" onclick="dismissGoalChangedBanner()">Dismiss</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Goal section -->
   <div class="two-col" style="margin-bottom:24px;">
@@ -88,8 +102,51 @@
     <div class="card">
       <div class="card-title">📋 Plan Info</div>
       <div id="plan-meta" style="color:var(--text-sec);font-size:14px;">
-        No plan generated yet. Click "Generate New Plan" to create your personalized weekly training plan.
+        No plan yet. Build a full program for a structured training block, or generate a quick plan for this week.
       </div>
+    </div>
+  </div>
+
+  <!-- Program progress banner -->
+  <div id="program-banner" class="hidden" style="margin-bottom:20px;">
+    <div class="card" style="padding:16px 20px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+        <div>
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-sec);margin-bottom:4px;">Training Program</div>
+          <div id="program-week-label" style="font-size:22px;font-weight:800;color:var(--text);">Week 1 of 8</div>
+          <div id="program-phase-label" style="font-size:13px;color:var(--accent);margin-top:2px;font-weight:600;"></div>
+        </div>
+        <div style="text-align:right;">
+          <div id="program-countdown" style="font-size:16px;font-weight:700;color:var(--text);">—</div>
+          <div style="font-size:12px;color:var(--text-sec);margin-top:2px;">until goal date</div>
+        </div>
+      </div>
+      <div class="recap-progress-wrap" style="margin-top:12px;">
+        <div id="program-progress-bar" class="recap-progress-bar" style="width:0%;"></div>
+      </div>
+      <div id="program-progress-label" style="font-size:11px;color:var(--text-sec);margin-top:4px;"></div>
+    </div>
+  </div>
+
+  <!-- Week navigator (shown when a program is active) -->
+  <div id="week-navigator" class="hidden" style="margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+    <button class="btn btn-secondary" id="week-nav-prev" onclick="navigateWeek(-1)" style="padding:6px 14px;font-size:13px;">&#8592; Prev</button>
+    <div style="text-align:center;flex:1;min-width:140px;">
+      <div id="week-nav-label" style="font-size:13px;font-weight:700;"></div>
+      <div id="week-nav-dates" style="font-size:11px;color:var(--text-sec);margin-top:2px;"></div>
+      <button id="week-nav-today" class="btn btn-secondary hidden" onclick="goToCurrentWeek()" style="margin-top:6px;padding:3px 10px;font-size:11px;">↩ Back to current week</button>
+    </div>
+    <button class="btn btn-secondary" id="week-nav-next" onclick="navigateWeek(1)" style="padding:6px 14px;font-size:13px;">Next &#8594;</button>
+  </div>
+
+  <!-- Next week prompt (shown when current week has ended) -->
+  <div id="next-week-banner" class="hidden" style="margin-bottom:20px;">
+    <div class="card" style="border:1.5px solid var(--accent);padding:16px 20px;">
+      <div style="font-size:14px;font-weight:700;margin-bottom:6px;">Week complete — ready for next week?</div>
+      <div id="next-week-info" style="font-size:13px;color:var(--text-sec);margin-bottom:14px;line-height:1.5;"></div>
+      <button class="btn btn-primary" id="next-week-btn" onclick="generateNextWeek()">
+        Generate Week <span id="next-week-number"></span>
+      </button>
     </div>
   </div>
 
@@ -171,6 +228,42 @@
   </div>
 </div>
 
+<!-- ── Build Full Program modal ── -->
+<div id="program-modal" class="modal-backdrop hidden" onclick="closeProgramModal(event)">
+  <div class="modal-card" style="max-width:440px;" role="dialog" aria-modal="true">
+    <div class="modal-header">
+      <h3 class="modal-title">📅 Build Full Training Program</h3>
+      <button class="modal-close" onclick="closeProgramModal()">&times;</button>
+    </div>
+    <div id="program-modal-body" style="padding:0 24px 8px;">
+      <!-- Populated dynamically by openProgramModal() based on goal type -->
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeProgramModal()">Cancel</button>
+      <button class="btn btn-primary" id="program-confirm-btn" onclick="createProgram()">Build Program</button>
+    </div>
+  </div>
+</div>
+
+<style>
+/* ── Program modal: intensity option buttons ── */
+.pm-opt-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.pm-opt-grid-4 { grid-template-columns: repeat(4, 1fr); }
+.pm-opt-btn {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 10px 8px; border: 1.5px solid var(--border); border-radius: 10px;
+  background: var(--surface); cursor: pointer; font-size: 12px; text-align: center;
+  transition: border-color .15s, background .15s; line-height: 1.3;
+}
+.pm-opt-btn:hover { border-color: var(--accent); }
+.pm-opt-btn.active { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.pm-opt-icon { font-size: 20px; }
+.pm-opt-label { font-weight: 700; font-size: 12px; color: var(--text); }
+.pm-opt-sub { font-size: 11px; color: var(--text-sec); }
+@media (max-width: 420px) {
+  .pm-opt-grid-4 { grid-template-columns: repeat(2, 1fr); }
+}
+</style>
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 <script src="/js/api.js?v=2"></script>
 <script src="/js/auth.js?v=2"></script>

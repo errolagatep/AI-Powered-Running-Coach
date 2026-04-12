@@ -32,7 +32,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     ]);
 
     renderStats(progress, runs);
-    renderGoalBanner(goal);
+    renderGoalBanner(goal, plan);
     renderProfileIncompleteBanner();
     renderWeeklyRecap(runs, plan, gam);
     renderTodayWorkout(plan);
@@ -228,7 +228,7 @@ function renderStats(progress, runs) {
   }
 }
 
-function renderGoalBanner(goal) {
+function renderGoalBanner(goal, plan) {
   if (!goal) return;
   const banner = document.getElementById("goal-banner");
   banner.classList.remove("hidden");
@@ -237,9 +237,13 @@ function renderGoalBanner(goal) {
   const weeksLeft = Math.max(0, Math.round((raceDate - new Date()) / (7 * 24 * 60 * 60 * 1000)));
 
   document.getElementById("goal-title").textContent = `${goal.race_type} Goal`;
-  const detail = goal.target_time_min
+  let detail = goal.target_time_min
     ? `${weeksLeft} weeks away · Target: ${formatTargetTime(goal.target_time_min)}`
     : `${weeksLeft} weeks away · ${raceDate.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}`;
+
+  if (plan?.week_number && plan?.total_weeks) {
+    detail += ` · Week ${plan.week_number} of ${plan.total_weeks}`;
+  }
   document.getElementById("goal-detail").textContent = detail;
 }
 

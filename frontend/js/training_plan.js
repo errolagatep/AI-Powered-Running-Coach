@@ -1,8 +1,56 @@
 let currentGoalId = null;
+let currentGoalData = null;  // Full goal object (needed for program modal)
 let currentPlanId = null;    // ID of the currently loaded plan
 let currentPlanData = null;  // Full plan response object
+let currentProgram = null;   // Active training program object
 let weekRunsMap = {};        // date-string → run object for this plan's week
 let weekRunsById = {};       // run.id → run object (safe onclick lookup)
+let viewingWeekNumber = null; // Week number the user is currently viewing (null = current week)
+let _isPastWeekView = false;  // True when viewing a past week (disables action buttons)
+
+// ── Header button state ───────────────────────────────────────
+// Rules:
+//   Program active  → [Recalibrate Week] [New Program];  hide Quick Plan
+//   No program, has plan → [Build Full Program] [Recalibrate]; hide Quick Plan
+//   No program, no plan → [Build Full Program] [Quick Plan]; hide Recalibrate
+function updateHeaderButtons() {
+  const recalibrateBtn = document.getElementById("recalibrate-btn");
+  const programBtn     = document.getElementById("program-btn");
+  const generateBtn    = document.getElementById("generate-btn");
+
+  if (currentProgram) {
+    // Program active — generation is driven by the program system
+    generateBtn.classList.add("hidden");
+    recalibrateBtn.classList.remove("hidden");
+    recalibrateBtn.textContent = "🔄 Recalibrate Week";
+    programBtn.textContent = "📅 New Program";
+  } else if (currentPlanData) {
+    // Standalone plan exists — recalibrate makes sense, fresh generate doesn't
+    generateBtn.classList.add("hidden");
+    recalibrateBtn.classList.remove("hidden");
+    recalibrateBtn.textContent = "🔄 Recalibrate from Efforts";
+    programBtn.textContent = "📅 Build Full Program";
+  } else {
+    // Nothing yet — steer toward full program, quick plan as escape hatch
+    generateBtn.classList.remove("hidden");
+    generateBtn.textContent = "✨ Quick Plan";
+    recalibrateBtn.classList.add("hidden");
+    programBtn.textContent = "📅 Build Full Program";
+  }
+}
+
+function dismissGoalChangedBanner() {
+  document.getElementById("goal-changed-banner").classList.add("hidden");
+}
+
+// Returns the local Monday date as "YYYY-MM-DD" (avoids UTC off-by-one for UTC+ users)
+function getLocalMondayISO() {
+  const now = new Date();
+  const day = now.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+  const diffToMonday = (day === 0) ? -6 : 1 - day;
+  const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() + diffToMonday);
+  return `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, "0")}-${String(monday.getDate()).padStart(2, "0")}`;
+}
 
 document.addEventListener("DOMContentLoaded", async () => {
   if (!requireAuth()) return;
@@ -31,15 +79,18 @@ async function loadGoal() {
 
 function renderGoal(goal) {
   currentGoalId = goal.id;
+  currentGoalData = goal;
   const raceDate = new Date(goal.race_date);
   const weeksLeft = Math.max(0, Math.round((raceDate - new Date()) / (7 * 24 * 60 * 60 * 1000)));
   const dateStr = raceDate.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
   const targetStr = goal.target_time_min ? ` · Target: ${formatTargetTime(goal.target_time_min)}` : "";
 
-  document.getElementById("goal-info").innerHTML =
+  const goalInfo = document.getElementById("goal-info");
+  goalInfo.innerHTML =
     `<strong style="color:var(--text);font-size:15px;">${goal.race_type}</strong><br>
      ${dateStr}<br>
      <span style="color:var(--accent);">${weeksLeft} weeks to go</span>${targetStr}`;
+  goalInfo.dataset.raceDate = goal.race_date;
 
   document.getElementById("goal-display").classList.remove("hidden");
   document.getElementById("goal-form").classList.add("hidden");
@@ -72,6 +123,10 @@ async function saveGoal() {
   try {
     const goal = await api.post("/goals/", body);
     renderGoal(goal);
+    // If a program is already active, prompt the user to rebuild it
+    if (currentProgram) {
+      document.getElementById("goal-changed-banner").classList.remove("hidden");
+    }
   } catch (err) {
     alert(err.message || "Failed to save goal");
   }
@@ -89,10 +144,36 @@ async function deleteGoal() {
   if (!confirm("Remove your current goal?")) return;
   try {
     await api.delete(`/goals/${currentGoalId}`);
+
+    // Clear all goal state
     currentGoalId = null;
+    currentGoalData = null;
     document.getElementById("goal-display").classList.add("hidden");
     document.getElementById("goal-form").classList.remove("hidden");
     document.getElementById("goal-info").innerHTML = "";
+
+    // Clear all plan and program state
+    currentPlanId = null;
+    currentPlanData = null;
+    currentProgram = null;
+    viewingWeekNumber = null;
+    _isPastWeekView = false;
+    weekRunsMap = {};
+    weekRunsById = {};
+
+    // Hide all plan UI sections
+    document.getElementById("plan-container").classList.add("hidden");
+    document.getElementById("program-banner").classList.add("hidden");
+    document.getElementById("next-week-banner").classList.add("hidden");
+    document.getElementById("week-navigator").classList.add("hidden");
+    document.getElementById("goal-changed-banner").classList.add("hidden");
+    document.getElementById("alert").classList.add("hidden");
+
+    // Reset plan info card
+    document.getElementById("plan-meta").innerHTML =
+      "No plan yet. Build a full program for a structured training block, or generate a quick plan for this week.";
+
+    updateHeaderButtons();
   } catch (err) {
     alert(err.message || "Failed to remove goal");
   }
@@ -100,13 +181,34 @@ async function deleteGoal() {
 
 async function loadPlan() {
   try {
-    const data = await api.get("/plans/current");
-    if (data) {
+    const [data, program] = await Promise.all([
+      api.get("/plans/current"),
+      api.get("/plans/program/active").catch(() => null),
+    ]);
+    currentProgram = program;
+
+    // Only show a plan if it's a standalone plan (no program_id)
+    // or if its program is still active. A plan linked to an abandoned
+    // program (e.g. after goal deletion) should not be shown.
+    const planBelongsToActiveProgram = data?.program_id && program;
+    const planIsStandalone = data && !data.program_id;
+
+    if (planBelongsToActiveProgram || planIsStandalone) {
       currentPlanId = data.id;
       currentPlanData = data;
       await loadWeekRuns(data.week_start);
       renderPlan(data);
     }
+    if (program) {
+      renderProgramBanner(program, data);
+      checkNextWeekPrompt(program, data);
+      updateWeekNavigator();
+    } else {
+      document.getElementById("program-banner").classList.add("hidden");
+      document.getElementById("next-week-banner").classList.add("hidden");
+      document.getElementById("week-navigator").classList.add("hidden");
+    }
+    updateHeaderButtons();
   } catch (err) {
     console.error("Failed to load plan:", err);
   }
@@ -156,11 +258,15 @@ async function generatePlan() {
   document.getElementById("alert").classList.add("hidden");
 
   try {
-    const data = await api.post("/plans/generate", {});
+    const localMonday = getLocalMondayISO();
+    const data = await api.post(`/plans/generate?local_monday=${localMonday}`, {});
     currentPlanId = data.id;
     currentPlanData = data;
+    viewingWeekNumber = null;
+    _isPastWeekView = false;
     await loadWeekRuns(data.week_start);
     renderPlan(data);
+    updateHeaderButtons();
   } catch (err) {
     const alertEl = document.getElementById("alert");
     alertEl.textContent = err.message || "Failed to generate plan";
@@ -168,7 +274,7 @@ async function generatePlan() {
   } finally {
     document.getElementById("plan-loading").classList.add("hidden");
     btn.disabled = false;
-    btn.textContent = "✨ Generate New Plan";
+    updateHeaderButtons(); // restore correct label after any state
   }
 }
 
@@ -236,9 +342,9 @@ function workoutCard(day, run) {
     ? `<span class="workout-variation-badge">🔀 Varied</span>`
     : "";
 
-  // Footer buttons: reschedule always shown for incomplete days; vary only for non-rest
+  // Footer buttons: reschedule always shown for incomplete days in current week; hidden for past weeks
   let footerHtml = "";
-  if (!run && currentPlanId) {
+  if (!run && currentPlanId && !_isPastWeekView) {
     const rescheduleBtn = `<button class="btn-reschedule" onclick="event.stopPropagation();openRescheduleModal('${day.day}')">📅 Reschedule</button>`;
     const varyBtn = !isRest
       ? `<button class="btn-vary" onclick="event.stopPropagation();varyWorkout('${day.day}')">🔀 Vary workout</button>`
@@ -386,9 +492,12 @@ async function recalibratePlan() {
   document.getElementById("alert").classList.add("hidden");
 
   try {
-    const data = await api.post("/plans/recalibrate", {});
+    const localMonday = getLocalMondayISO();
+    const data = await api.post(`/plans/recalibrate?local_monday=${localMonday}`, {});
     currentPlanId = data.id;
     currentPlanData = data;
+    viewingWeekNumber = null;
+    _isPastWeekView = false;
     await loadWeekRuns(data.week_start);
     renderPlan(data);
   } catch (err) {
@@ -506,4 +615,501 @@ function badgeForType(type) {
   if (t.includes("active"))   return "badge-recovery";
   if (t.includes("rest"))     return "badge-rest";
   return "badge-easy";
+}
+
+// ── Training Program ──────────────────────────────────────────
+
+function renderProgramBanner(program, planData) {
+  if (!program) return;
+  const weekNum = planData?.week_number ?? null;
+  const totalWeeks = program.total_weeks;
+
+  const endDate = new Date(program.end_date + "T00:00:00");
+  const now = new Date();
+  const daysLeft = Math.max(0, Math.round((endDate - now) / (1000 * 60 * 60 * 24)));
+  const weeksLeft = Math.ceil(daysLeft / 7);
+
+  const skeletonWeek = weekNum ? program.skeleton.find(w => w.week_number === weekNum) : null;
+  const phase = skeletonWeek?.phase ?? "";
+
+  const pct = weekNum ? Math.round((weekNum / totalWeeks) * 100) : 0;
+
+  document.getElementById("program-week-label").textContent =
+    weekNum ? `Week ${weekNum} of ${totalWeeks}` : `${totalWeeks}-Week Program`;
+  document.getElementById("program-phase-label").textContent = phase ? `Phase: ${phase}` : "";
+  document.getElementById("program-countdown").textContent =
+    weeksLeft > 1 ? `${weeksLeft} weeks (${daysLeft} days)` : `${daysLeft} day${daysLeft !== 1 ? "s" : ""}`;
+  document.getElementById("program-progress-bar").style.width = `${pct}%`;
+  document.getElementById("program-progress-label").textContent =
+    weekNum ? `${pct}% of program complete` : "Program active — generate Week 1 to begin";
+
+  document.getElementById("program-banner").classList.remove("hidden");
+}
+
+function checkNextWeekPrompt(program, planData) {
+  if (!planData?.week_start || !planData?.week_number) return;
+  const mondayKey = planData.week_start.slice(0, 10);
+  const [y, m, d] = mondayKey.split("-").map(Number);
+  const sunday = new Date(y, m - 1, d + 6);
+  sunday.setHours(23, 59, 59, 999);
+
+  const nextWeekNum = planData.week_number + 1;
+  if (new Date() > sunday && nextWeekNum <= program.total_weeks) {
+    const skeletonWeek = program.skeleton.find(w => w.week_number === nextWeekNum);
+    const nextPhase = skeletonWeek?.phase ?? "";
+    const nextFocus = skeletonWeek?.focus ?? "";
+    document.getElementById("next-week-number").textContent = nextWeekNum;
+    document.getElementById("next-week-info").textContent =
+      nextPhase ? `${nextPhase}: ${nextFocus}` : nextFocus;
+    document.getElementById("next-week-banner").classList.remove("hidden");
+  }
+}
+
+async function generateNextWeek() {
+  if (!currentProgram || !currentPlanData?.week_number) return;
+  const nextWeekNum = currentPlanData.week_number + 1;
+  const btn = document.getElementById("next-week-btn");
+  btn.disabled = true;
+  btn.innerHTML = '<span class="btn-spinner"></span> Generating…';
+
+  document.getElementById("plan-loading").classList.remove("hidden");
+  document.getElementById("plan-container").classList.add("hidden");
+  document.getElementById("next-week-banner").classList.add("hidden");
+
+  try {
+    const data = await api.post("/plans/next-week", {
+      program_id: currentProgram.id,
+      week_number: nextWeekNum,
+    });
+    currentPlanId = data.id;
+    currentPlanData = data;
+    viewingWeekNumber = null;
+    _isPastWeekView = false;
+    await loadWeekRuns(data.week_start);
+    renderPlan(data);
+    renderProgramBanner(currentProgram, data);
+    updateWeekNavigator();
+    updateHeaderButtons();
+  } catch (err) {
+    const alertEl = document.getElementById("alert");
+    alertEl.textContent = err.message || "Failed to generate next week.";
+    alertEl.classList.remove("hidden");
+    document.getElementById("next-week-banner").classList.remove("hidden");
+  } finally {
+    document.getElementById("plan-loading").classList.add("hidden");
+    btn.disabled = false;
+    btn.textContent = `Generate Week ${nextWeekNum}`;
+  }
+}
+
+async function openProgramModal() {
+  const body = document.getElementById("program-modal-body");
+  const goalType = currentGoalData?.goal_type || "race";
+
+  if ((goalType === "race" || goalType === "pb_attempt") && (!currentGoalId || !currentGoalData)) {
+    alert("Please set a goal before building a program."); return;
+  }
+
+  // Fetch existing assessment for prefilling intensity questions
+  let assessment = null;
+  try { assessment = await api.get("/onboarding/"); } catch (_) {}
+
+  // ── Intensity section (always shown) ──────────────────────────
+  const intensityHtml = buildProgramIntensityHtml(assessment);
+
+  // ── Goal-type-specific section ────────────────────────────────
+  let goalHtml = "";
+
+  if (goalType === "race" || goalType === "pb_attempt") {
+    const raceDate = new Date(currentGoalData.race_date);
+    const weeks = Math.min(26, Math.max(2,
+      Math.floor((raceDate - new Date()) / (7 * 24 * 60 * 60 * 1000))));
+    goalHtml = `
+      <p style="font-size:14px;line-height:1.7;margin-bottom:4px;">
+        Takbo Coach will create a <strong>${weeks}-week</strong> periodized program for your
+        <strong>${escapeHtml(currentGoalData.race_type)}</strong> goal,
+        covering Base Building → Build → Peak → Taper.
+      </p>
+      <p style="font-size:13px;color:var(--text-sec);line-height:1.5;">
+        Each week is generated on demand using your actual run history. This replaces any existing program.
+      </p>`;
+
+  } else if (goalType === "fitness") {
+    goalHtml = `
+      <div class="form-group">
+        <label>Program Duration</label>
+        <select class="form-control" id="pm-duration">
+          <option value="6">6 weeks</option>
+          <option value="8" selected>8 weeks</option>
+          <option value="12">12 weeks</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Weekly km target <span style="opacity:.5">optional</span></label>
+        <input class="form-control" type="number" id="pm-target-km" placeholder="e.g. 35" min="5" max="200" />
+        <div class="form-hint">How many km/week do you want to be running by the end?</div>
+      </div>`;
+
+  } else if (goalType === "speed") {
+    goalHtml = `
+      <div class="form-group">
+        <label>Program Duration</label>
+        <select class="form-control" id="pm-duration">
+          <option value="6">6 weeks</option>
+          <option value="8" selected>8 weeks</option>
+          <option value="10">10 weeks</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Target 5K pace <span style="opacity:.5">optional</span></label>
+        <input class="form-control" type="text" id="pm-target-pace" placeholder="e.g. 5:30" />
+        <div class="form-hint">Format: MM:SS per km</div>
+      </div>`;
+
+  } else if (goalType === "endurance") {
+    goalHtml = `
+      <div class="form-group">
+        <label>Program Duration</label>
+        <select class="form-control" id="pm-duration">
+          <option value="8">8 weeks</option>
+          <option value="12" selected>12 weeks</option>
+          <option value="16">16 weeks</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Target long run <span style="opacity:.5">km, optional</span></label>
+        <input class="form-control" type="number" id="pm-target-long-run" placeholder="e.g. 20" min="5" max="60" />
+        <div class="form-hint">Longest single run you want to complete by the end of the program</div>
+      </div>`;
+
+  } else if (goalType === "weight_loss") {
+    const currentWeight = getUser()?.weight_kg;
+    const weightNote = currentWeight
+      ? `Your current weight: <strong>${currentWeight} kg</strong>`
+      : `<a href="/profile.html">Set your weight in Profile</a> for better calorie estimates`;
+    goalHtml = `
+      <div class="form-group">
+        <label>Program Duration</label>
+        <select class="form-control" id="pm-duration">
+          <option value="8">8 weeks</option>
+          <option value="12" selected>12 weeks</option>
+          <option value="16">16 weeks</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Target weight <span style="opacity:.5">kg, optional</span></label>
+        <input class="form-control" type="number" id="pm-target-weight" placeholder="e.g. 72" step="0.5" min="30" max="300" />
+        <div class="form-hint">${weightNote}</div>
+      </div>`;
+
+  } else {
+    goalHtml = `
+      <div class="form-group">
+        <label>Program Duration</label>
+        <select class="form-control" id="pm-duration">
+          <option value="6">6 weeks</option>
+          <option value="8" selected>8 weeks</option>
+          <option value="12">12 weeks</option>
+        </select>
+      </div>`;
+  }
+
+  body.innerHTML = intensityHtml + goalHtml;
+
+  document.getElementById("program-modal").classList.remove("hidden");
+  document.body.style.overflow = "hidden";
+}
+
+function buildProgramIntensityHtml(assessment) {
+  const load = assessment?.load_capacity ?? "moderate";
+  const days = assessment?.available_days ?? 4;
+  const dist = assessment?.preferred_distance ?? "mixed";
+
+  const loadOpts = [
+    { val: "low",      icon: "😌", label: "Easy",     sub: "Light & consistent" },
+    { val: "moderate", icon: "💼", label: "Moderate",  sub: "Balanced effort" },
+    { val: "high",     icon: "🔥", label: "High",      sub: "Push the limits" },
+  ];
+  const distOpts = [
+    { val: "short",  icon: "🏙️", label: "Short",  sub: "3–5 km" },
+    { val: "medium", icon: "🛤️", label: "Medium", sub: "5–10 km" },
+    { val: "long",   icon: "🏞️", label: "Long",   sub: "10 km+" },
+    { val: "mixed",  icon: "🔀", label: "Mixed",  sub: "Variety" },
+  ];
+
+  const loadBtns = loadOpts.map(o =>
+    `<button type="button" class="pm-opt-btn${o.val === load ? " active" : ""}"
+       data-group="load" data-val="${o.val}" onclick="pmSelectOption(this)">
+       <span class="pm-opt-icon">${o.icon}</span>
+       <span class="pm-opt-label">${o.label}</span>
+       <span class="pm-opt-sub">${o.sub}</span>
+     </button>`).join("");
+
+  const dayBtns = [1,2,3,4,5,6,7].map(n =>
+    `<button type="button" class="day-toggle${n === days ? " active" : ""}"
+       data-val="${n}" onclick="pmSelectDay(this)">${n}</button>`).join("");
+
+  const distBtns = distOpts.map(o =>
+    `<button type="button" class="pm-opt-btn${o.val === dist ? " active" : ""}"
+       data-group="distance" data-val="${o.val}" onclick="pmSelectOption(this)">
+       <span class="pm-opt-icon">${o.icon}</span>
+       <span class="pm-opt-label">${o.label}</span>
+       <span class="pm-opt-sub">${o.sub}</span>
+     </button>`).join("");
+
+  return `
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-sec);margin-bottom:12px;">
+      Training Preferences
+    </div>
+    <div class="form-group">
+      <label>How hard do you want to train?</label>
+      <div class="pm-opt-grid">${loadBtns}</div>
+    </div>
+    <div class="form-group" style="margin-top:14px;">
+      <label>Days available per week</label>
+      <div class="day-toggles" id="pm-days-group">${dayBtns}</div>
+    </div>
+    <div class="form-group" style="margin-top:14px;">
+      <label>Preferred run distance</label>
+      <div class="pm-opt-grid pm-opt-grid-4">${distBtns}</div>
+    </div>
+    <div style="border-top:1px solid var(--border);margin:18px 0 16px;"></div>
+  `;
+}
+
+function pmSelectOption(btn) {
+  const group = btn.dataset.group;
+  document.querySelectorAll(`.pm-opt-btn[data-group="${group}"]`)
+    .forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+}
+
+function pmSelectDay(btn) {
+  document.getElementById("pm-days-group")
+    ?.querySelectorAll(".day-toggle")
+    .forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+}
+
+function closeProgramModal(e) {
+  if (e && e.target !== document.getElementById("program-modal")) return;
+  document.getElementById("program-modal").classList.add("hidden");
+  document.body.style.overflow = "";
+}
+
+// ── Week navigator ────────────────────────────────────────────
+
+function updateWeekNavigator() {
+  if (!currentProgram) {
+    document.getElementById("week-navigator").classList.add("hidden");
+    return;
+  }
+
+  const totalWeeks = currentProgram.total_weeks;
+  // Current live week number from the generated plan (null if no plan yet)
+  const liveWeekNum = currentPlanData?.week_number ?? null;
+  const viewing = viewingWeekNumber ?? liveWeekNum;
+
+  if (!viewing) {
+    document.getElementById("week-navigator").classList.add("hidden");
+    return;
+  }
+
+  // Compute week date range from program start
+  const progStart = new Date(currentProgram.start_date + "T00:00:00");
+  const weekStart = new Date(progStart);
+  weekStart.setDate(weekStart.getDate() + (viewing - 1) * 7);
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekEnd.getDate() + 6);
+
+  const fmt = { month: "short", day: "numeric" };
+  const rangeStr = `${weekStart.toLocaleDateString("en-US", fmt)} – ${weekEnd.toLocaleDateString("en-US", fmt)}`;
+
+  const isCurrentWeek = viewing === liveWeekNum;
+  const label = isCurrentWeek
+    ? `Week ${viewing} of ${totalWeeks} (Current)`
+    : `Week ${viewing} of ${totalWeeks}`;
+
+  document.getElementById("week-nav-label").textContent = label;
+  document.getElementById("week-nav-dates").textContent = rangeStr;
+
+  document.getElementById("week-nav-prev").disabled = viewing <= 1;
+  document.getElementById("week-nav-next").disabled = viewing >= (liveWeekNum ?? totalWeeks);
+
+  const todayBtn = document.getElementById("week-nav-today");
+  if (_isPastWeekView) {
+    todayBtn.classList.remove("hidden");
+  } else {
+    todayBtn.classList.add("hidden");
+  }
+
+  document.getElementById("week-navigator").classList.remove("hidden");
+}
+
+async function navigateWeek(dir) {
+  if (!currentProgram) return;
+  const liveWeekNum = currentPlanData?.week_number ?? null;
+  const currentViewing = viewingWeekNumber ?? liveWeekNum;
+  if (currentViewing === null) return;
+
+  const newWeek = currentViewing + dir;
+  if (newWeek < 1 || newWeek > (liveWeekNum ?? currentProgram.total_weeks)) return;
+
+  if (newWeek === liveWeekNum) {
+    // Going back to current week — restore from loaded plan data
+    viewingWeekNumber = null;
+    _isPastWeekView = false;
+    updateWeekNavigator();
+    if (currentPlanData) {
+      await loadWeekRuns(currentPlanData.week_start);
+      renderPlan(currentPlanData);
+    }
+    return;
+  }
+
+  await loadWeekByNumber(newWeek);
+}
+
+async function goToCurrentWeek() {
+  if (!currentProgram || !currentPlanData) return;
+  viewingWeekNumber = null;
+  _isPastWeekView = false;
+  updateWeekNavigator();
+  await loadWeekRuns(currentPlanData.week_start);
+  renderPlan(currentPlanData);
+  renderProgramBanner(currentProgram, currentPlanData);
+  checkNextWeekPrompt(currentProgram, currentPlanData);
+}
+
+async function loadWeekByNumber(weekNum) {
+  if (!currentProgram) return;
+  document.getElementById("plan-loading").classList.remove("hidden");
+  document.getElementById("plan-container").classList.add("hidden");
+
+  try {
+    const data = await api.get(
+      `/plans/by-week?program_id=${currentProgram.id}&week_number=${weekNum}`
+    );
+
+    viewingWeekNumber = weekNum;
+    _isPastWeekView = true;
+
+    // Populate weekRunsMap and weekRunsById from the returned runs
+    weekRunsMap = {};
+    weekRunsById = {};
+    if (data.runs?.length) {
+      for (const run of data.runs) {
+        const key = dateStrToLocalKey(run.date);
+        weekRunsMap[key] = run;
+        weekRunsById[run.id] = run;
+      }
+    }
+
+    if (data.plan) {
+      // Build a minimal plan response shape renderPlan expects
+      const pseudoPlanData = {
+        id: null,
+        week_start: data.week_start,
+        generated_at: null,
+        week_number: weekNum,
+        total_weeks: data.total_weeks,
+        plan: data.plan,
+      };
+      renderPlan(pseudoPlanData);
+      renderProgramBanner(currentProgram, pseudoPlanData);
+    } else {
+      // Week exists in program but plan not generated yet
+      document.getElementById("plan-container").classList.add("hidden");
+      document.getElementById("plan-summary").innerHTML = "";
+      document.getElementById("plan-grid").innerHTML =
+        `<div style="grid-column:1/-1;text-align:center;padding:32px;color:var(--text-sec);">
+           Week ${weekNum} plan hasn't been generated yet.
+         </div>`;
+      document.getElementById("plan-container").classList.remove("hidden");
+      renderProgramBanner(currentProgram, { week_number: weekNum, total_weeks: data.total_weeks });
+    }
+
+    updateWeekNavigator();
+  } catch (err) {
+    const alertEl = document.getElementById("alert");
+    alertEl.textContent = err.message || "Failed to load week.";
+    alertEl.classList.remove("hidden");
+  } finally {
+    document.getElementById("plan-loading").classList.add("hidden");
+  }
+}
+
+async function createProgram() {
+  const btn = document.getElementById("program-confirm-btn");
+  btn.disabled = true;
+  btn.innerHTML = '<span class="btn-spinner"></span> Building skeleton…';
+
+  // Build payload — collect goal-type-specific fields from modal
+  const payload = {};
+  if (currentGoalId) payload.goal_id = currentGoalId;
+
+  const durationEl = document.getElementById("pm-duration");
+  if (durationEl) payload.duration_weeks = parseInt(durationEl.value);
+
+  const kmEl = document.getElementById("pm-target-km");
+  if (kmEl?.value) { payload.target_value = parseFloat(kmEl.value); payload.target_unit = "km_per_week"; }
+
+  const paceEl = document.getElementById("pm-target-pace");
+  if (paceEl?.value) {
+    const mins = parseTimeToMinutes(paceEl.value);
+    if (mins) { payload.target_value = mins; payload.target_unit = "pace_per_km"; }
+  }
+
+  const longRunEl = document.getElementById("pm-target-long-run");
+  if (longRunEl?.value) { payload.target_value = parseFloat(longRunEl.value); payload.target_unit = "long_run_km"; }
+
+  const weightEl = document.getElementById("pm-target-weight");
+  if (weightEl?.value) payload.target_weight_kg = parseFloat(weightEl.value);
+
+  // Intensity preferences
+  const loadVal = document.querySelector('.pm-opt-btn[data-group="load"].active')?.dataset.val;
+  if (loadVal) payload.load_capacity = loadVal;
+
+  const daysVal = document.querySelector('#pm-days-group .day-toggle.active')?.dataset.val;
+  if (daysVal) payload.available_days = parseInt(daysVal);
+
+  const distVal = document.querySelector('.pm-opt-btn[data-group="distance"].active')?.dataset.val;
+  if (distVal) payload.preferred_distance = distVal;
+
+  try {
+    payload.local_monday = getLocalMondayISO();
+    const program = await api.post("/plans/program", payload);
+    currentProgram = program;
+    closeProgramModal();
+
+    // Auto-generate Week 1
+    document.getElementById("plan-loading").classList.remove("hidden");
+    document.getElementById("plan-container").classList.add("hidden");
+    document.getElementById("plan-loading").querySelector("p").textContent =
+      "Takbo Coach is building your full program skeleton and generating Week 1…";
+
+    const data = await api.post("/plans/next-week", {
+      program_id: program.id,
+      week_number: 1,
+    });
+    currentPlanId = data.id;
+    currentPlanData = data;
+    viewingWeekNumber = null;
+    _isPastWeekView = false;
+    await loadWeekRuns(data.week_start);
+    renderPlan(data);
+    renderProgramBanner(program, data);
+    updateWeekNavigator();
+    updateHeaderButtons();
+    document.getElementById("goal-changed-banner").classList.add("hidden");
+    document.getElementById("next-week-banner").classList.add("hidden");
+  } catch (err) {
+    const alertEl = document.getElementById("alert");
+    alertEl.textContent = err.message || "Failed to build program. Please try again.";
+    alertEl.classList.remove("hidden");
+  } finally {
+    document.getElementById("plan-loading").classList.add("hidden");
+    btn.disabled = false;
+    btn.textContent = "Build Program";
+  }
 }

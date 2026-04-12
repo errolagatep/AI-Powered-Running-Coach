@@ -212,7 +212,7 @@ def strava_sync(
             else:
                 effort_level = 10
 
-        run_date = activity["start_date"][:10]  # ISO date, strip time
+        run_date = activity["start_date_local"][:10]  # Use local date, not UTC
 
         route_polyline = activity.get("map", {}).get("summary_polyline") or None
 

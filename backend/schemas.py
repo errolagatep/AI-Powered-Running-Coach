@@ -93,9 +93,14 @@ class RunResponse(BaseModel):
 # ── Goals ─────────────────────────────────────────────────────────────────────
 
 class GoalCreate(BaseModel):
-    race_type: str  # 5K, 10K, HM, Marathon
+    race_type: str  # 5K, 10K, HM, Marathon, General Fitness, Weight Loss, etc.
     race_date: datetime
     target_time_min: Optional[float] = None
+    goal_type: str = "race"  # 'race' | 'fitness' | 'weight_loss' | 'pb_attempt' | 'endurance' | 'speed' | 'custom'
+    goal_description: Optional[str] = None
+    target_value: Optional[float] = None      # generic numeric target (km/week, pace, long run km)
+    target_unit: Optional[str] = None         # 'km_per_week' | 'pace_per_km' | 'long_run_km' | 'runs_per_week'
+    target_weight_kg: Optional[float] = None  # weight loss specific
 
 
 class GoalResponse(BaseModel):
@@ -106,7 +111,54 @@ class GoalResponse(BaseModel):
     race_type: str
     race_date: datetime
     target_time_min: Optional[float] = None
+    goal_type: str = "race"
+    goal_description: Optional[str] = None
+    target_value: Optional[float] = None
+    target_unit: Optional[str] = None
+    target_weight_kg: Optional[float] = None
     created_at: datetime
+
+
+# ── Training Programs ──────────────────────────────────────────────────────────
+
+class WeekSkeletonItem(BaseModel):
+    week_number: int
+    phase: str
+    focus: str
+    target_km: float
+    target_long_run_km: float
+    key_workout: str
+    notes: str = ""
+
+
+class ProgramCreate(BaseModel):
+    goal_id: Optional[str] = None        # required for race goals; optional for non-race (auto-created)
+    duration_weeks: Optional[int] = None # used when there is no existing race_date goal
+    target_value: Optional[float] = None
+    target_unit: Optional[str] = None
+    target_weight_kg: Optional[float] = None
+    local_monday: Optional[str] = None  # YYYY-MM-DD from client for timezone-correct week start
+    # Intensity preferences — re-confirmed at program build time; updates the assessment
+    load_capacity: Optional[str] = None      # 'low' | 'moderate' | 'high'
+    available_days: Optional[int] = None     # 1–7
+    preferred_distance: Optional[str] = None # 'short' | 'medium' | 'long' | 'mixed'
+
+
+class ProgramResponse(BaseModel):
+    id: str
+    user_id: str
+    goal_id: Optional[str] = None
+    total_weeks: int
+    start_date: str
+    end_date: str
+    skeleton: List[WeekSkeletonItem]
+    status: str
+    created_at: datetime
+
+
+class NextWeekRequest(BaseModel):
+    program_id: str
+    week_number: int
 
 
 # ── Assessment ────────────────────────────────────────────────
