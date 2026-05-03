@@ -22,6 +22,16 @@
 /* ── Reset & Base ──────────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* ── Icon system — SVG icons scale via font-size on their container ───────── */
+.icon, i[data-lucide] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.icon svg, i[data-lucide] svg { width: 1em; height: 1em; display: block; }
+
 body {
   background: var(--bg);
   color: var(--text);
@@ -407,7 +417,7 @@ a:hover { text-decoration: underline; }
   box-shadow: 0 2px 8px rgba(249,115,22,0.08);
 }
 
-.goal-banner .goal-icon { font-size: 28px; }
+.goal-banner .goal-icon { font-size: 28px; color: var(--accent); }
 
 .goal-banner .goal-info h3 {
   font-size: 15px;
@@ -1048,11 +1058,15 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .workout-completed-msg {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-size: 12px;
   font-weight: 600;
   color: #16a34a;
   line-height: 1.4;
 }
+.workout-completed-msg .icon { font-size: 14px; color: #16a34a; }
 
 .workout-completed-link {
   font-size: 11px;
@@ -1265,7 +1279,7 @@ input[type="range"]::-webkit-slider-thumb {
   color: var(--text-sec);
 }
 
-.empty-state .empty-icon { font-size: 52px; margin-bottom: 12px; }
+.empty-state .empty-icon { font-size: 52px; margin-bottom: 12px; color: var(--text-sec); display: flex; justify-content: center; }
 .empty-state h3 { font-size: 17px; font-weight: 700; color: var(--text); margin-bottom: 8px; }
 .empty-state p  { font-size: 14px; margin-bottom: 20px; }
 
@@ -1319,11 +1333,12 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .gen-runner {
-  font-size: 52px;
-  display: block;
+  display: flex;
+  justify-content: center;
   margin-bottom: 8px;
   animation: runnerBounce 0.7s ease-in-out infinite alternate;
 }
+.gen-runner svg { width: 52px; height: 52px; }
 
 @keyframes runnerBounce {
   from { transform: translateY(0px); }
@@ -1540,7 +1555,7 @@ input[type="range"]::-webkit-slider-thumb {
 }
 .option-card input[type=radio] { position: absolute; opacity: 0; pointer-events: none; }
 
-.option-icon  { font-size: 30px; }
+.option-icon  { font-size: 30px; color: var(--accent); display: flex; justify-content: center; margin-bottom: 4px; }
 .option-label { font-size: 13px; font-weight: 700; color: var(--text); line-height: 1.3; }
 .option-sub   { font-size: 11px; color: var(--text-sec); }
 
@@ -1659,7 +1674,7 @@ input[type="range"]::-webkit-slider-thumb {
   border-radius: 12px;
   padding: 16px;
 }
-.coach-avatar  { font-size: 28px; flex-shrink: 0; }
+.coach-avatar  { font-size: 28px; flex-shrink: 0; display: flex; align-items: center; }
 .coach-message { font-size: 14px; color: var(--text); line-height: 1.6; margin: 0; }
 
 /* ── Final screen ── */
@@ -1667,7 +1682,7 @@ input[type="range"]::-webkit-slider-thumb {
   text-align: center;
   padding: 20px 0 8px;
 }
-.ob-final .ob-final-emoji { font-size: 68px; margin-bottom: 16px; animation: popIn .5s cubic-bezier(.22,.68,0,1.4); }
+.ob-final .ob-final-emoji { font-size: 68px; margin-bottom: 16px; animation: popIn .5s cubic-bezier(.22,.68,0,1.4); display: flex; justify-content: center; color: var(--accent); }
 
 @keyframes popIn {
   from { transform: scale(0); opacity: 0; }
@@ -1730,7 +1745,7 @@ input[type="range"]::-webkit-slider-thumb {
   gap: 16px;
   padding: 16px 20px;
 }
-.streak-fire  { font-size: 32px; }
+.streak-fire  { font-size: 32px; color: var(--accent); display: flex; align-items: center; }
 .streak-count { font-size: 28px; font-weight: 800; color: var(--accent); line-height: 1; }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -1767,7 +1782,8 @@ input[type="range"]::-webkit-slider-thumb {
 .achievement-card:not(.locked):hover { border-color: var(--accent2); transform: translateY(-1px); }
 .achievement-card.locked { opacity: .35; filter: grayscale(1); }
 
-.ach-icon  { font-size: 28px; flex-shrink: 0; }
+.ach-icon  { font-size: 28px; flex-shrink: 0; color: var(--accent); display: flex; align-items: center; }
+.achievement-card.locked .ach-icon { color: var(--text-sec); }
 .ach-body  { min-width: 0; }
 .ach-title { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 2px; }
 .ach-desc  { font-size: 11px; color: var(--text-sec); margin-bottom: 4px; }
@@ -1810,7 +1826,7 @@ input[type="range"]::-webkit-slider-thumb {
   to   { opacity: 1; transform: translateX(0); }
 }
 
-.toast-icon  { font-size: 26px; flex-shrink: 0; }
+.toast-icon  { font-size: 26px; flex-shrink: 0; color: var(--accent); display: flex; align-items: center; }
 .toast-body  { flex: 1; min-width: 0; }
 .toast-title { font-size: 10px; text-transform: uppercase; letter-spacing: .8px; color: #16a34a; font-weight: 700; margin-bottom: 2px; }
 .toast-name  { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 2px; }
@@ -1940,7 +1956,7 @@ input[type="range"]::-webkit-slider-thumb {
   animation: slideUpCard .4s cubic-bezier(.22,.68,0,1.2);
 }
 
-.pab-icon  { font-size: 28px; flex-shrink: 0; }
+.pab-icon  { font-size: 28px; flex-shrink: 0; color: var(--accent); display: flex; align-items: center; }
 
 .pab-body  { flex: 1; min-width: 0; }
 
@@ -2055,6 +2071,9 @@ input[type="range"]::-webkit-slider-thumb {
 
 /* Badge shown on cards whose workout has been varied */
 .workout-variation-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
@@ -2065,6 +2084,7 @@ input[type="range"]::-webkit-slider-thumb {
   border-radius: 4px;
   padding: 2px 6px;
 }
+.workout-variation-badge .icon { font-size: 11px; }
 
 /* Varied card gets a subtle accent border */
 .workout-card.varied {
@@ -2096,11 +2116,17 @@ html { scroll-behavior: smooth; }
 
 /* ── Stat card color variants ──────────────────────────────────────────────── */
 .stat-card-icon {
-  font-size: 20px;
-  display: block;
+  font-size: 22px;
+  display: flex;
+  align-items: center;
   margin-bottom: 8px;
   line-height: 1;
+  color: var(--text-sec);
 }
+.stat-card--blue   .stat-card-icon { color: var(--blue); }
+.stat-card--green  .stat-card-icon { color: var(--accent2); }
+.stat-card--orange .stat-card-icon { color: var(--accent); }
+.stat-card--purple .stat-card-icon { color: var(--purple); }
 
 .stat-card--blue   { border-top: 3px solid var(--blue); }
 .stat-card--green  { border-top: 3px solid var(--accent2); }
@@ -2352,7 +2378,11 @@ span.flatpickr-weekday {
   font-weight: 700;
   color: var(--text);
   margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
+.weekly-recap-headline .icon { font-size: 20px; color: var(--accent); flex-shrink: 0; }
 .weekly-recap-sub {
   font-size: 13px;
   color: var(--text-sec);
@@ -2404,6 +2434,9 @@ span.flatpickr-weekday {
   font-size: 28px;
   flex-shrink: 0;
   margin-top: 2px;
+  display: flex;
+  align-items: flex-start;
+  color: var(--accent);
 }
 .coach-prompt-title {
   font-size: 14px;
@@ -2551,10 +2584,10 @@ span.flatpickr-weekday {
 .qlm-fab:active { transform: translateY(0); }
 
 .qlm-fab-icon {
-  font-size: 24px;
-  font-weight: 300;
+  font-size: 22px;
   line-height: 1;
-  margin-top: -1px;
+  display: flex;
+  align-items: center;
 }
 .qlm-fab-label {
   font-size: 14px;

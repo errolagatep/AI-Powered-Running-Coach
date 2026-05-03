@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Profile — Takbo Running Coach</title>
+  <link rel="icon" type="image/svg+xml" href="/images/logo.svg" />
   <link rel="stylesheet" href="/css/style.css" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
 </head>
@@ -11,7 +12,7 @@
 
 <nav class="navbar">
   <a class="navbar-brand" href="/dashboard.html">
-    <img class="navbar-logo" src="/images/logo.png" alt="Takbo" onerror="this.style.display='none';" />
+    <img class="navbar-logo" src="/images/logo.svg" alt="Takbo" onerror="this.style.display='none';" />
     <span class="navbar-brand-text">
       <span class="navbar-brand-name">Takbo</span>
       <span class="navbar-brand-tagline">Running Coach</span>
@@ -253,8 +254,10 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
 <script src="/js/api.js"></script>
 <script src="/js/auth.js"></script>
 <script src="/js/profile.js"></script>
+<script>document.addEventListener("DOMContentLoaded", () => lucide.createIcons());</script>
 </body>
 </html>

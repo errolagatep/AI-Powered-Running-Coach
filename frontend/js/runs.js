@@ -8,6 +8,7 @@ const _maps     = {};        // runId → Leaflet map instance
 // ── Boot ─────────────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", async () => {
   if (!requireAuth()) return;
+  lucide.createIcons();
   await fetchRuns();
 });
 
@@ -87,6 +88,7 @@ function applyFilter() {
   list.classList.remove("hidden");
   list.innerHTML = filtered.map(runCard).join("");
   initRouteMaps(filtered);
+  lucide.createIcons();
 }
 
 // ── Stats ─────────────────────────────────────────────────────
@@ -135,7 +137,7 @@ function runCard(run) {
     expandContent = `<div style="padding:10px 0 4px;">
       <button class="btn btn-secondary" style="font-size:13px;"
         onclick="event.stopPropagation();generateFeedback('${run.id}',this)">
-        ✨ Get Takbo Coach Feedback
+        ${Icons.sparkles} Get Takbo Coach Feedback
       </button>
     </div>`;
   } else {
@@ -209,7 +211,7 @@ async function generateFeedback(runId, btn) {
     }
   } catch (err) {
     btn.disabled = false;
-    btn.textContent = "✨ Get Takbo Coach Feedback";
+    btn.innerHTML = `${Icons.sparkles} Get Takbo Coach Feedback`;
     alert(err.message || "Failed to generate feedback.");
   }
 }

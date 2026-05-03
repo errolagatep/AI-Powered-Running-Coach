@@ -319,7 +319,7 @@ async function submitAssessment() {
     hideGenOverlay();
     showError(err.message || "Something went wrong. Please try again.");
     btn.disabled = false;
-    btn.textContent = "Build My Profile 🏃";
+    btn.textContent = "Build My Profile";
   }
 }
 

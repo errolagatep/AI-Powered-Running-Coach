@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Dashboard — Takbo Running Coach</title>
+  <link rel="icon" type="image/svg+xml" href="/images/logo.svg" />
   <link rel="stylesheet" href="/css/style.css" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -12,7 +13,7 @@
 
 <nav class="navbar">
   <a class="navbar-brand" href="/dashboard.html">
-    <img class="navbar-logo" src="/images/logo.png" alt="Takbo" onerror="this.style.display='none';" />
+    <img class="navbar-logo" src="/images/logo.svg" alt="Takbo" onerror="this.style.display='none';" />
     <span class="navbar-brand-text">
       <span class="navbar-brand-name">Takbo</span>
       <span class="navbar-brand-tagline">Running Coach</span>
@@ -42,7 +43,7 @@
 
   <!-- Goal Banner -->
   <div id="goal-banner" class="goal-banner hidden">
-    <div class="goal-icon">🎯</div>
+    <div class="goal-icon"><i data-lucide="target" class="icon"></i></div>
     <div class="goal-info">
       <h3 id="goal-title"></h3>
       <p id="goal-detail"></p>
@@ -53,38 +54,38 @@
   <!-- Stats -->
   <div class="stats-grid">
     <div class="stat-card stat-card--blue">
-      <span class="stat-card-icon">📅</span>
+      <span class="stat-card-icon"><i data-lucide="calendar" class="icon"></i></span>
       <div class="stat-label">This Week</div>
       <div class="stat-value" id="stat-week-km">—</div>
       <div class="stat-unit">kilometers</div>
     </div>
     <div class="stat-card stat-card--green">
-      <span class="stat-card-icon">🏃</span>
+      <span class="stat-card-icon"><i data-lucide="activity" class="icon"></i></span>
       <div class="stat-label">Runs This Week</div>
       <div class="stat-value" id="stat-week-runs">—</div>
       <div class="stat-unit">sessions</div>
     </div>
     <div class="stat-card stat-card--orange">
-      <span class="stat-card-icon">⚡</span>
+      <span class="stat-card-icon"><i data-lucide="zap" class="icon"></i></span>
       <div class="stat-label">Avg Pace (7 runs)</div>
       <div class="stat-value" id="stat-avg-pace">—</div>
       <div class="stat-unit">min/km</div>
     </div>
     <div class="stat-card stat-card--purple">
-      <span class="stat-card-icon">🏆</span>
+      <span class="stat-card-icon"><i data-lucide="trophy" class="icon"></i></span>
       <div class="stat-label">Total Runs</div>
       <div class="stat-value" id="stat-total-runs">—</div>
       <div class="stat-unit">all time</div>
     </div>
     <!-- Gamification cards -->
     <div class="stat-card streak-stat-card" id="streak-stat-card" style="display:none;">
-      <span class="stat-card-icon">🔥</span>
+      <span class="stat-card-icon"><i data-lucide="flame" class="icon"></i></span>
       <div class="stat-label">Streak</div>
       <div class="stat-value" id="stat-streak">0</div>
       <div class="stat-unit">days in a row</div>
     </div>
     <div class="stat-card level-stat-card" id="level-stat-card" style="display:none;">
-      <span class="stat-card-icon">⭐</span>
+      <span class="stat-card-icon"><i data-lucide="star" class="icon"></i></span>
       <div class="stat-label">Level</div>
       <div class="stat-value level-badge-large" id="stat-level">1</div>
       <div class="xp-bar-wrap" style="margin-top:8px;">
@@ -120,7 +121,7 @@
   <div id="run-list" class="run-list hidden"></div>
 
   <div id="no-runs" class="empty-state hidden">
-    <div class="empty-icon">👟</div>
+    <div class="empty-icon"><i data-lucide="footprints" class="icon"></i></div>
     <h3>No runs yet!</h3>
     <p>Log your first run and get personalised coaching feedback from Takbo Coach.</p>
     <a href="/log_run.html" class="btn btn-primary">Log Your First Run</a>
@@ -205,8 +206,10 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
 <script src="/js/api.js"></script>
 <script src="/js/auth.js"></script>
+<script src="/js/icons.js"></script>
 <script src="/js/integrations.js"></script>
 <script src="/js/dashboard.js"></script>
 <script src="/js/log_modal.js"></script>

@@ -102,7 +102,7 @@
       </div>
       <div style="padding:0 24px 8px;">
         <div id="qlm-plan-adjusted" class="plan-adjusted-banner hidden" style="margin-bottom:12px;">
-          <div class="pab-icon">🔄</div>
+          <div class="pab-icon">${Icons.refreshCw}</div>
           <div class="pab-body">
             <div class="pab-title">Training plan updated</div>
             <div id="qlm-pab-reason" class="pab-reason"></div>

@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>All Runs — Takbo Running Coach</title>
+  <link rel="icon" type="image/svg+xml" href="/images/logo.svg" />
   <link rel="stylesheet" href="/css/style.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
@@ -12,7 +13,7 @@
 
 <nav class="navbar">
   <a class="navbar-brand" href="/dashboard.html">
-    <img class="navbar-logo" src="/images/logo.png" alt="Takbo" onerror="this.style.display='none';" />
+    <img class="navbar-logo" src="/images/logo.svg" alt="Takbo" onerror="this.style.display='none';" />
     <span class="navbar-brand-text">
       <span class="navbar-brand-name">Takbo</span>
       <span class="navbar-brand-tagline">Running Coach</span>
@@ -62,14 +63,14 @@
   </div>
 
   <div id="no-runs" class="empty-state hidden">
-    <div class="empty-icon">👟</div>
+    <div class="empty-icon"><i data-lucide="footprints" class="icon"></i></div>
     <h3>No runs yet!</h3>
     <p>Log your first run to start tracking your progress.</p>
     <a href="/log_run.html" class="btn btn-primary">Log Your First Run</a>
   </div>
 
   <div id="no-filter-results" class="empty-state hidden">
-    <div class="empty-icon">🔍</div>
+    <div class="empty-icon"><i data-lucide="search" class="icon"></i></div>
     <h3>No runs match this filter</h3>
     <p id="no-filter-msg"></p>
   </div>
@@ -77,8 +78,10 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
 <script src="/js/api.js"></script>
 <script src="/js/auth.js"></script>
+<script src="/js/icons.js"></script>
 <script src="/js/runs.js"></script>
 <script src="/js/log_modal.js"></script>
 </body>

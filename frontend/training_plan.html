@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Training Plan — Takbo Running Coach</title>
+  <link rel="icon" type="image/svg+xml" href="/images/logo.svg" />
   <link rel="stylesheet" href="/css/style.css" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
 </head>
@@ -11,7 +12,7 @@
 
 <nav class="navbar">
   <a class="navbar-brand" href="/dashboard.html">
-    <img class="navbar-logo" src="/images/logo.png" alt="Takbo" onerror="this.style.display='none';" />
+    <img class="navbar-logo" src="/images/logo.svg" alt="Takbo" onerror="this.style.display='none';" />
     <span class="navbar-brand-text">
       <span class="navbar-brand-name">Takbo</span>
       <span class="navbar-brand-tagline">Running Coach</span>
@@ -42,7 +43,7 @@
       </div>
       <div class="plan-actions-wrap" id="header-actions">
         <!-- Primary CTA — label/handler set by updateHeaderButtons() -->
-        <button class="btn btn-primary" id="plan-primary-btn" onclick="handlePrimaryAction()">✨ Generate This Week</button>
+        <button class="btn btn-primary" id="plan-primary-btn" onclick="handlePrimaryAction()"><i data-lucide="sparkles" class="icon"></i> Generate This Week</button>
 
         <!-- Overflow menu — shown when a plan/program exists -->
         <div class="plan-overflow-menu hidden" id="plan-overflow-wrap">
@@ -50,8 +51,8 @@
             ⋯ More
           </button>
           <div class="plan-overflow-dropdown" id="plan-overflow-dropdown">
-            <button class="plan-overflow-item" id="overflow-recalibrate" onclick="closePlanOverflow();openRecalibrateModal();">🔄 Recalibrate this week</button>
-            <button class="plan-overflow-item" id="overflow-program"    onclick="closePlanOverflow();openProgramModal();">📅 Rebuild program</button>
+            <button class="plan-overflow-item" id="overflow-recalibrate" onclick="closePlanOverflow();openRecalibrateModal();"><i data-lucide="refresh-cw" class="icon"></i> Recalibrate this week</button>
+            <button class="plan-overflow-item" id="overflow-program"    onclick="closePlanOverflow();openProgramModal();"><i data-lucide="calendar" class="icon"></i> Rebuild program</button>
           </div>
         </div>
       </div>
@@ -76,7 +77,7 @@
   <!-- Goal section -->
   <div class="two-col" style="margin-bottom:24px;">
     <div class="card">
-      <div class="card-title">🎯 Current Goal</div>
+      <div class="card-title"><i data-lucide="target" class="icon"></i> Current Goal</div>
       <div id="goal-section">
         <div id="goal-display" class="hidden">
           <div id="goal-info" style="margin-bottom:12px;color:var(--text-sec);font-size:14px;"></div>
@@ -136,7 +137,7 @@
     </div>
 
     <div class="card">
-      <div class="card-title">📋 Plan Info</div>
+      <div class="card-title"><i data-lucide="clipboard-list" class="icon"></i> Plan Info</div>
       <div id="plan-meta" style="color:var(--text-sec);font-size:14px;">
         No plan yet. Build a full program for a structured training block, or generate a quick plan for this week.
       </div>
@@ -215,7 +216,7 @@
 <div id="recalibrate-modal" class="modal-backdrop hidden" onclick="closeRecalibrateModal(event)">
   <div class="modal-card" style="max-width:440px;" role="dialog" aria-modal="true">
     <div class="modal-header">
-      <h3 class="modal-title">🔄 Recalibrate Training Plan</h3>
+      <h3 class="modal-title"><i data-lucide="refresh-cw" class="icon"></i> Recalibrate Training Plan</h3>
       <button class="modal-close" onclick="closeRecalibrateModal()">&times;</button>
     </div>
     <div style="padding:0 24px 8px;">
@@ -237,7 +238,7 @@
 <div id="reschedule-modal" class="modal-backdrop hidden" onclick="closeRescheduleModal(event)">
   <div class="modal-card" style="max-width:440px;" role="dialog" aria-modal="true">
     <div class="modal-header">
-      <h3 class="modal-title">📅 Reschedule Workout</h3>
+      <h3 class="modal-title"><i data-lucide="calendar" class="icon"></i> Reschedule Workout</h3>
       <button class="modal-close" onclick="closeRescheduleModal()">&times;</button>
     </div>
     <div style="padding:0 24px 8px;">
@@ -268,7 +269,7 @@
 <div id="program-modal" class="modal-backdrop hidden" onclick="closeProgramModal(event)">
   <div class="modal-card" style="max-width:440px;" role="dialog" aria-modal="true">
     <div class="modal-header">
-      <h3 class="modal-title">📅 Build Full Training Program</h3>
+      <h3 class="modal-title"><i data-lucide="calendar-days" class="icon"></i> Build Full Training Program</h3>
       <button class="modal-close" onclick="closeProgramModal()">&times;</button>
     </div>
     <div id="program-modal-body" style="padding:0 24px 8px;">
@@ -293,7 +294,7 @@
 }
 .pm-opt-btn:hover { border-color: var(--accent); }
 .pm-opt-btn.active { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
-.pm-opt-icon { font-size: 20px; }
+.pm-opt-icon { font-size: 20px; display: flex; justify-content: center; color: var(--accent); }
 .pm-opt-label { font-weight: 700; font-size: 12px; color: var(--text); }
 .pm-opt-sub { font-size: 11px; color: var(--text-sec); }
 @media (max-width: 420px) {
@@ -301,8 +302,10 @@
 }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
 <script src="/js/api.js?v=2"></script>
 <script src="/js/auth.js?v=2"></script>
+<script src="/js/icons.js"></script>
 <script src="/js/training_plan.js?v=2"></script>
 <script src="/js/log_modal.js"></script>
 </body>

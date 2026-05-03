@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Achievements — Takbo Running Coach</title>
+  <link rel="icon" type="image/svg+xml" href="/images/logo.svg" />
   <link rel="stylesheet" href="/css/style.css" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
 </head>
@@ -11,7 +12,7 @@
 
 <nav class="navbar">
   <a class="navbar-brand" href="/dashboard.html">
-    <img class="navbar-logo" src="/images/logo.png" alt="Takbo" onerror="this.style.display='none';" />
+    <img class="navbar-logo" src="/images/logo.svg" alt="Takbo" onerror="this.style.display='none';" />
     <span class="navbar-brand-text">
       <span class="navbar-brand-name">Takbo</span>
       <span class="navbar-brand-tagline">Running Coach</span>
@@ -55,7 +56,7 @@
 
   <!-- Streak -->
   <div class="card streak-card" id="streak-card" style="display:none;margin-bottom:24px;">
-    <span class="streak-fire">🔥</span>
+    <span class="streak-fire"><i data-lucide="flame" class="icon"></i></span>
     <div>
       <div class="streak-count" id="streak-count">0</div>
       <div style="font-size:13px;color:var(--text-sec);">day streak</div>
@@ -72,30 +73,33 @@
   <div id="ach-grid" class="achievement-grid hidden"></div>
 </div>
 
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 <script src="/js/api.js"></script>
 <script src="/js/auth.js"></script>
+<script src="/js/icons.js"></script>
 <script src="/js/log_modal.js"></script>
 <script>
 // All possible achievements (must match backend ACHIEVEMENTS dict)
 const ALL_ACHIEVEMENTS = [
-  { key: "first_run",       icon: "👟", title: "First Steps",        description: "Logged your very first run",              category: "Milestones" },
-  { key: "runs_10",         icon: "🔟", title: "Ten Strong",          description: "Logged 10 runs",                          category: "Milestones" },
-  { key: "runs_50",         icon: "5️⃣0️⃣", title: "Fifty Milestone",    description: "Logged 50 runs",                          category: "Milestones" },
-  { key: "runs_100",        icon: "💯", title: "Century Runner",      description: "Logged 100 runs",                         category: "Milestones" },
-  { key: "dist_10km",       icon: "🥉", title: "10 km Club",          description: "Accumulated 10 km total",                 category: "Distance"   },
-  { key: "dist_100km",      icon: "🥈", title: "100 km Club",         description: "Accumulated 100 km total",                category: "Distance"   },
-  { key: "dist_500km",      icon: "🥇", title: "500 km Club",         description: "Accumulated 500 km total",                category: "Distance"   },
-  { key: "dist_1000km",     icon: "🏆", title: "1000 km Legend",      description: "Accumulated 1000 km total",               category: "Distance"   },
-  { key: "streak_3",        icon: "🔥", title: "3-Day Streak",        description: "Ran 3 days in a row",                     category: "Streaks"    },
-  { key: "streak_7",        icon: "🔥🔥", title: "Week Warrior",       description: "Ran 7 days in a row",                     category: "Streaks"    },
-  { key: "streak_30",       icon: "⚡", title: "Iron Streak",          description: "Ran 30 days in a row",                    category: "Streaks"    },
-  { key: "speed_demon",     icon: "💨", title: "Speed Demon",          description: "Ran a km in under 5 minutes",             category: "Speed"      },
-  { key: "weekly_warrior",  icon: "🗓️", title: "Weekly Warrior",      description: "Ran 30+ km in a single week",             category: "Consistency"},
+  { key: "first_run",       iconName: "footprints", title: "First Steps",        description: "Logged your very first run",              category: "Milestones" },
+  { key: "runs_10",         iconName: "trophy",     title: "Ten Strong",          description: "Logged 10 runs",                          category: "Milestones" },
+  { key: "runs_50",         iconName: "trophy",     title: "Fifty Milestone",    description: "Logged 50 runs",                          category: "Milestones" },
+  { key: "runs_100",        iconName: "trophy",     title: "Century Runner",      description: "Logged 100 runs",                         category: "Milestones" },
+  { key: "dist_10km",       iconName: "trophy",     title: "10 km Club",          description: "Accumulated 10 km total",                 category: "Distance"   },
+  { key: "dist_100km",      iconName: "trophy",     title: "100 km Club",         description: "Accumulated 100 km total",                category: "Distance"   },
+  { key: "dist_500km",      iconName: "trophy",     title: "500 km Club",         description: "Accumulated 500 km total",                category: "Distance"   },
+  { key: "dist_1000km",     iconName: "trophy",     title: "1000 km Legend",      description: "Accumulated 1000 km total",               category: "Distance"   },
+  { key: "streak_3",        iconName: "flame",      title: "3-Day Streak",        description: "Ran 3 days in a row",                     category: "Streaks"    },
+  { key: "streak_7",        iconName: "flame",      title: "Week Warrior",       description: "Ran 7 days in a row",                     category: "Streaks"    },
+  { key: "streak_30",       iconName: "zap",        title: "Iron Streak",          description: "Ran 30 days in a row",                    category: "Streaks"    },
+  { key: "speed_demon",     iconName: "zap",        title: "Speed Demon",          description: "Ran a km in under 5 minutes",             category: "Speed"      },
+  { key: "weekly_warrior",  iconName: "calendar",   title: "Weekly Warrior",      description: "Ran 30+ km in a single week",             category: "Consistency"},
 ];
 
 document.addEventListener("DOMContentLoaded", async () => {
   if (!requireAuth()) return;
+  lucide.createIcons();
 
   try {
     const [gam, unlocked] = await Promise.all([
@@ -150,17 +154,18 @@ function renderAchievements(unlocked) {
       const dateStr = u ? new Date(u.unlocked_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : null;
       html += `
         <div class="achievement-card${u ? "" : " locked"}" title="${u ? "Unlocked " + dateStr : "Locked"}">
-          <div class="ach-icon">${a.icon}</div>
+          <div class="ach-icon"><i data-lucide="${a.iconName}" class="icon"></i></div>
           <div class="ach-body">
             <div class="ach-title">${a.title}</div>
             <div class="ach-desc">${a.description}</div>
-            ${u ? `<div class="ach-date">Unlocked ${dateStr}</div>` : `<div class="ach-date locked-label">🔒 Locked</div>`}
+            ${u ? `<div class="ach-date">Unlocked ${dateStr}</div>` : `<div class="ach-date locked-label"><i data-lucide="lock" class="icon"></i> Locked</div>`}
           </div>
         </div>`;
     });
     html += `</div>`;
   });
   grid.innerHTML = html;
+  lucide.createIcons();
 }
 </script>
 </body>

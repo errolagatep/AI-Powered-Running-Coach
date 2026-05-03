@@ -21,24 +21,24 @@ function updateHeaderButtons() {
 
   if (currentProgram) {
     // In a program — primary action is generating the next week
-    primaryBtn.textContent = "📅 Build Full Program";
+    primaryBtn.innerHTML = `${Icons.calendar} Build Full Program`;
     primaryBtn.classList.remove("btn-primary");
     primaryBtn.classList.add("btn-secondary");
     overflowWrap.classList.remove("hidden");
-    overflowProg.textContent = "📅 New Program";
+    overflowProg.innerHTML = `${Icons.calendar} New Program`;
     // Disable overflow rebuild if viewing a past week
     document.getElementById("overflow-recalibrate").disabled = _isPastWeekView;
   } else if (currentPlanData) {
     // Standalone plan — nudge toward building a full program
-    primaryBtn.textContent = "📅 Start a Training Program";
+    primaryBtn.innerHTML = `${Icons.calendar} Start a Training Program`;
     primaryBtn.classList.remove("btn-secondary");
     primaryBtn.classList.add("btn-primary");
     overflowWrap.classList.remove("hidden");
-    overflowProg.textContent = "📅 Build Full Program";
+    overflowProg.innerHTML = `${Icons.calendar} Build Full Program`;
     document.getElementById("overflow-recalibrate").disabled = false;
   } else {
     // Nothing yet — primary action: generate a quick plan for this week
-    primaryBtn.textContent = "✨ Generate This Week's Plan";
+    primaryBtn.innerHTML = `${Icons.sparkles} Generate This Week's Plan`;
     primaryBtn.classList.remove("btn-secondary");
     primaryBtn.classList.add("btn-primary");
     overflowWrap.classList.add("hidden");
@@ -93,6 +93,7 @@ function setGoalCategory(cat) {
 
 document.addEventListener("DOMContentLoaded", async () => {
   if (!requireAuth()) return;
+  lucide.createIcons();
 
   flatpickr("#race-date", {
     minDate: "today",
@@ -407,6 +408,7 @@ function renderPlan(data) {
 
   document.getElementById("plan-container").classList.remove("hidden");
   document.getElementById("plan-loading").classList.add("hidden");
+  lucide.createIcons();
 }
 
 function workoutCard(day, run) {
@@ -424,27 +426,27 @@ function workoutCard(day, run) {
 
   const completedBanner = run
     ? `<div class="workout-completed-banner">
-         <span class="workout-completed-msg">✅ ${day.day} session done!</span>
+         <span class="workout-completed-msg">${Icons.checkCircle} ${day.day} session done!</span>
          <span class="workout-completed-link">View details →</span>
        </div>`
     : "";
 
   const rescheduledBanner = day.rescheduled_from
     ? `<div class="workout-rescheduled-banner">
-         📅 Rescheduled from ${escapeHtml(day.rescheduled_from)}${day.reschedule_note ? ` — ${escapeHtml(day.reschedule_note)}` : ""}
+         ${Icons.calendar} Rescheduled from ${escapeHtml(day.rescheduled_from)}${day.reschedule_note ? ` — ${escapeHtml(day.reschedule_note)}` : ""}
        </div>`
     : "";
 
   const variationBadge = day.is_variation
-    ? `<span class="workout-variation-badge">🔀 Varied</span>`
+    ? `<span class="workout-variation-badge">${Icons.shuffle} Varied</span>`
     : "";
 
   // Footer buttons: reschedule always shown for incomplete days in current week; hidden for past weeks
   let footerHtml = "";
   if (!run && currentPlanId && !_isPastWeekView) {
-    const rescheduleBtn = `<button class="btn-reschedule" onclick="event.stopPropagation();openRescheduleModal('${day.day}')">📅 Reschedule</button>`;
+    const rescheduleBtn = `<button class="btn-reschedule" onclick="event.stopPropagation();openRescheduleModal('${day.day}')">${Icons.calendar} Reschedule</button>`;
     const varyBtn = !isRest
-      ? `<button class="btn-vary" onclick="event.stopPropagation();varyWorkout('${day.day}')">🔀 Vary workout</button>`
+      ? `<button class="btn-vary" onclick="event.stopPropagation();varyWorkout('${day.day}')">${Icons.shuffle} Vary workout</button>`
       : "";
     footerHtml = `<div class="workout-card-footer">${rescheduleBtn}${varyBtn}</div>`;
   }
@@ -514,7 +516,7 @@ function openRunDetail(run) {
 
   const feedbackHtml = run.ai_feedback
     ? `<div class="ai-feedback-box">
-         <div class="ai-feedback-label">🏃 Takbo Coach Feedback</div>
+         <div class="ai-feedback-label">${Icons.runner} Takbo Coach Feedback</div>
          <div class="ai-feedback-text">${renderMarkdown(run.ai_feedback)}</div>
        </div>`
     : `<div style="color:var(--text-sec);font-size:13px;">No coaching feedback available for this run.</div>`;
@@ -919,6 +921,7 @@ async function openProgramModal() {
 
   document.getElementById("program-modal").classList.remove("hidden");
   document.body.style.overflow = "hidden";
+  lucide.createIcons();
 }
 
 function buildProgramIntensityHtml(assessment) {
@@ -927,15 +930,15 @@ function buildProgramIntensityHtml(assessment) {
   const dist = assessment?.preferred_distance ?? "mixed";
 
   const loadOpts = [
-    { val: "low",      icon: "😌", label: "Easy",     sub: "Light & consistent" },
-    { val: "moderate", icon: "💼", label: "Moderate",  sub: "Balanced effort" },
-    { val: "high",     icon: "🔥", label: "High",      sub: "Push the limits" },
+    { val: "low",      icon: Icons.smile,     label: "Easy",     sub: "Light & consistent" },
+    { val: "moderate", icon: Icons.briefcase, label: "Moderate", sub: "Balanced effort" },
+    { val: "high",     icon: Icons.flame,     label: "High",     sub: "Push the limits" },
   ];
   const distOpts = [
-    { val: "short",  icon: "🏙️", label: "Short",  sub: "3–5 km" },
-    { val: "medium", icon: "🛤️", label: "Medium", sub: "5–10 km" },
-    { val: "long",   icon: "🏞️", label: "Long",   sub: "10 km+" },
-    { val: "mixed",  icon: "🔀", label: "Mixed",  sub: "Variety" },
+    { val: "short",  icon: Icons.building2, label: "Short",  sub: "3–5 km" },
+    { val: "medium", icon: Icons.route,     label: "Medium", sub: "5–10 km" },
+    { val: "long",   icon: Icons.trees,     label: "Long",   sub: "10 km+" },
+    { val: "mixed",  icon: Icons.shuffle,   label: "Mixed",  sub: "Variety" },
   ];
 
   const loadBtns = loadOpts.map(o =>

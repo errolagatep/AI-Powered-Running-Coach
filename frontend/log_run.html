@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Log a Run — Takbo Running Coach</title>
+  <link rel="icon" type="image/svg+xml" href="/images/logo.svg" />
   <link rel="stylesheet" href="/css/style.css" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
 </head>
@@ -11,7 +12,7 @@
 
 <nav class="navbar">
   <a class="navbar-brand" href="/dashboard.html">
-    <img class="navbar-logo" src="/images/logo.png" alt="Takbo" onerror="this.style.display='none';" />
+    <img class="navbar-logo" src="/images/logo.svg" alt="Takbo" onerror="this.style.display='none';" />
     <span class="navbar-brand-text">
       <span class="navbar-brand-name">Takbo</span>
       <span class="navbar-brand-tagline">Running Coach</span>
@@ -107,7 +108,7 @@
   <div id="feedback-result" class="hidden">
     <!-- Plan-adjusted banner (shown conditionally) -->
     <div id="plan-adjusted-banner" class="plan-adjusted-banner hidden">
-      <div class="pab-icon">🔄</div>
+      <div class="pab-icon"><i data-lucide="refresh-cw" class="icon"></i></div>
       <div class="pab-body">
         <div class="pab-title">Training plan updated</div>
         <div id="pab-reason" class="pab-reason"></div>
@@ -116,7 +117,7 @@
     </div>
 
     <div style="display:flex;align-items:center;justify-content:space-between;margin:24px 0 12px;">
-      <h2 style="font-size:17px;font-weight:700;">🏃 Takbo Coach Feedback</h2>
+      <h2 style="font-size:17px;font-weight:700;display:flex;align-items:center;gap:8px;"><img src="/images/logo.svg" alt="" style="width:20px;height:20px;" /> Takbo Coach Feedback</h2>
       <a href="/log_run.html" class="btn btn-secondary">Log Another Run</a>
     </div>
     <div id="feedback-text" class="feedback-box"></div>
@@ -129,8 +130,11 @@
 
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
 <script src="/js/api.js"></script>
 <script src="/js/auth.js"></script>
+<script src="/js/icons.js"></script>
 <script src="/js/log_run.js"></script>
+<script>document.addEventListener("DOMContentLoaded", () => lucide.createIcons());</script>
 </body>
 </html>

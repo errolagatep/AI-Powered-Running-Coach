@@ -40,6 +40,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     renderRuns(runs);
     if (gam) renderGamification(gam);
     if (achievements) checkNewAchievements(achievements);
+    lucide.createIcons();
   } catch (err) {
     console.error(err);
   }
@@ -73,6 +74,7 @@ async function loadRuns() {
   try {
     const runs = await api.get("/runs/?limit=10");
     renderRuns(runs);
+    lucide.createIcons();
   } catch (err) {
     console.error(err);
     document.getElementById("runs-loading").classList.add("hidden");
@@ -88,7 +90,7 @@ function renderProfileIncompleteBanner() {
   const el = document.getElementById("profile-incomplete-banner");
   el.innerHTML = `
     <div class="coach-prompt-card">
-      <div class="coach-prompt-avatar">🏃</div>
+      <div class="coach-prompt-avatar">${Icons.runner}</div>
       <div class="coach-prompt-body">
         <div class="coach-prompt-title">Complete your runner profile</div>
         <div class="coach-prompt-msg">Your coaching feedback and training plans will be much more accurate once I know more about you. It only takes 2 minutes!</div>
@@ -129,7 +131,7 @@ function renderSetupChecklist(goal, plan, runs) {
   el.innerHTML = `
     <div class="setup-checklist-card">
       <div class="setup-checklist-title">
-        <span>🚀 Get started with Takbo</span>
+        <span style="display:flex;align-items:center;gap:6px;">${Icons.rocket} Get started with Takbo</span>
         <button class="setup-checklist-dismiss" onclick="dismissSetupChecklist()" title="Dismiss">&times;</button>
       </div>
       <ul class="setup-checklist-items">
@@ -194,24 +196,24 @@ function renderWeeklyRecap(runs, planData, gam) {
   // Motivational message
   let emoji, headline, subline;
   if (weekCount === 0) {
-    emoji = "💪"; headline = "Week is just getting started!";
+    emoji = Icons.dumbbell; headline = "Week is just getting started!";
     subline = daysLeft <= 2
       ? "Still time to get a run in — every kilometre counts."
       : "Your first run of the week sets the tone. Lace up!";
   } else if (progress !== null && progress >= 1) {
-    emoji = "🔥"; headline = "You've hit your planned workouts — incredible!";
+    emoji = Icons.flame; headline = "You've hit your planned workouts — incredible!";
     subline = "Every session done. Rest up and come back stronger next week.";
   } else if (progress !== null && progress >= 0.6) {
-    emoji = "⭐"; headline = "Strong week — keep the momentum going!";
+    emoji = Icons.star; headline = "Strong week — keep the momentum going!";
     subline = `${weekCount} of ${plannedDays} planned runs done. ${daysLeft > 0 ? `${daysLeft} day${daysLeft !== 1 ? "s" : ""} left to finish strong.` : ""}`;
   } else if (streak >= 3) {
-    emoji = "🔥"; headline = `${streak}-day streak — you're on fire!`;
+    emoji = Icons.flame; headline = `${streak}-day streak — you're on fire!`;
     subline = "Consistency is your superpower. Keep showing up.";
   } else if (weekCount >= 2) {
-    emoji = "📈"; headline = "Good momentum this week!";
+    emoji = Icons.trendingUp; headline = "Good momentum this week!";
     subline = `${weekKm.toFixed(1)} km logged so far. ${plannedKm > 0 ? `Target: ${plannedKm.toFixed(1)} km.` : "Keep building."}`;
   } else {
-    emoji = "🌅"; headline = `${weekCount} run down this week — nice start!`;
+    emoji = Icons.sunrise; headline = `${weekCount} run down this week — nice start!`;
     subline = "Every run builds the habit. One more this week would be great.";
   }
 
@@ -238,7 +240,7 @@ function renderWeeklyRecap(runs, planData, gam) {
         </div>
         ${streak > 0 ? `<div class="recap-metric">
           <div class="recap-metric-val">${streak}</div>
-          <div class="recap-metric-lbl">day streak 🔥</div>
+          <div class="recap-metric-lbl" style="display:flex;align-items:center;gap:4px;">day streak ${Icons.flame}</div>
         </div>` : ""}
       </div>
       ${barPct !== null ? `
@@ -363,6 +365,7 @@ window._qlmOnRunLogged = async function () {
     renderStats(progress, runs);
     renderRuns(runs);
     if (gam) renderGamification(gam);
+    lucide.createIcons();
   } catch (_) {}
 };
 
@@ -388,7 +391,7 @@ async function generateFeedback(runId, btn) {
     }
   } catch (err) {
     btn.disabled = false;
-    btn.textContent = "✨ Get Takbo Coach Feedback";
+    btn.innerHTML = `${Icons.sparkles} Get Takbo Coach Feedback`;
     alert(err.message || "Failed to generate feedback.");
   }
 }
@@ -432,7 +435,7 @@ function runCard(run) {
     expandContent = `<div style="padding:10px 0 4px;">
       <button class="btn btn-secondary" style="font-size:13px;"
         onclick="event.stopPropagation();generateFeedback('${run.id}',this)">
-        ✨ Get Takbo Coach Feedback
+        ${Icons.sparkles} Get Takbo Coach Feedback
       </button>
     </div>`;
   } else {
@@ -660,7 +663,7 @@ function showAchievementToast(a) {
   const toast = document.createElement("div");
   toast.className = "toast-achievement";
   toast.innerHTML = `
-    <div class="toast-icon">${a.icon}</div>
+    <div class="toast-icon">${achIconSvg(a.icon)}</div>
     <div class="toast-body">
       <div class="toast-title">Achievement Unlocked!</div>
       <div class="toast-name">${a.title}</div>

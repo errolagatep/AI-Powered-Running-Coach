@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Let's Get Started — Takbo Running Coach</title>
+  <link rel="icon" type="image/svg+xml" href="/images/logo.svg" />
   <link rel="stylesheet" href="/css/style.css" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
 </head>
@@ -23,8 +24,7 @@
 
     <div class="ob-hero">
       <div class="auth-logo">
-        <img class="auth-logo-img" src="/images/logo.png" alt="Takbo Running Coach" onerror="this.style.display='none';this.nextElementSibling.style.display='block';" />
-        <span style="display:none;font-size:52px;">🏃</span>
+        <img class="auth-logo-img" src="/images/logo.svg" alt="Takbo Running Coach" onerror="this.style.display='none';" />
       </div>
       <h1>Let's build your profile</h1>
       <p>A few quick questions so Takbo Coach can personalise everything for you.</p>
@@ -39,25 +39,25 @@
       <div class="option-grid">
         <label class="option-card" onclick="pickAndAdvance('experience', 'beginner:0', 1)">
           <input type="radio" name="experience" value="beginner:0" />
-          <span class="option-icon">🌱</span>
+          <span class="option-icon"><i data-lucide="sprout" class="icon"></i></span>
           <span class="option-label">Just starting out</span>
           <span class="option-sub">Less than 6 months</span>
         </label>
         <label class="option-card" onclick="pickAndAdvance('experience', 'beginner:1', 1)">
           <input type="radio" name="experience" value="beginner:1" />
-          <span class="option-icon">🚶</span>
+          <span class="option-icon"><i data-lucide="footprints" class="icon"></i></span>
           <span class="option-label">Building a habit</span>
           <span class="option-sub">6 months – 2 years</span>
         </label>
         <label class="option-card" onclick="pickAndAdvance('experience', 'intermediate:3', 1)">
           <input type="radio" name="experience" value="intermediate:3" />
-          <span class="option-icon">🏃</span>
+          <span class="option-icon"><i data-lucide="activity" class="icon"></i></span>
           <span class="option-label">Regular runner</span>
           <span class="option-sub">2 – 5 years</span>
         </label>
         <label class="option-card" onclick="pickAndAdvance('experience', 'advanced:6', 1)">
           <input type="radio" name="experience" value="advanced:6" />
-          <span class="option-icon">⚡</span>
+          <span class="option-icon"><i data-lucide="zap" class="icon"></i></span>
           <span class="option-label">Experienced</span>
           <span class="option-sub">5+ years</span>
         </label>
@@ -72,31 +72,31 @@
       <div class="option-grid">
         <label class="option-card" onclick="pickAndAdvance('goal', 'fitness', 2)">
           <input type="radio" name="goal" value="fitness" />
-          <span class="option-icon">💪</span>
+          <span class="option-icon"><i data-lucide="dumbbell" class="icon"></i></span>
           <span class="option-label">General Fitness</span>
           <span class="option-sub">Stay active & healthy</span>
         </label>
         <label class="option-card" onclick="pickAndAdvance('goal', 'speed', 2)">
           <input type="radio" name="goal" value="speed" />
-          <span class="option-icon">⚡</span>
+          <span class="option-icon"><i data-lucide="zap" class="icon"></i></span>
           <span class="option-label">Run Faster</span>
           <span class="option-sub">Improve pace & PRs</span>
         </label>
         <label class="option-card" onclick="pickAndAdvance('goal', 'endurance', 2)">
           <input type="radio" name="goal" value="endurance" />
-          <span class="option-icon">🏔️</span>
+          <span class="option-icon"><i data-lucide="mountain" class="icon"></i></span>
           <span class="option-label">Build Endurance</span>
           <span class="option-sub">Run longer distances</span>
         </label>
         <label class="option-card" onclick="pickAndAdvance('goal', 'race_prep', 2)">
           <input type="radio" name="goal" value="race_prep" />
-          <span class="option-icon">🏅</span>
+          <span class="option-icon"><i data-lucide="medal" class="icon"></i></span>
           <span class="option-label">Race Prep</span>
           <span class="option-sub">Train for a specific event</span>
         </label>
         <label class="option-card" onclick="pickAndAdvance('goal', 'weight_loss', 2)">
           <input type="radio" name="goal" value="weight_loss" />
-          <span class="option-icon">🔥</span>
+          <span class="option-icon"><i data-lucide="flame" class="icon"></i></span>
           <span class="option-label">Weight Loss</span>
           <span class="option-sub">Burn calories consistently</span>
         </label>
@@ -112,25 +112,25 @@
       <div class="option-grid ob-race-grid" id="race-type-cards">
         <label class="option-card" onclick="pickRaceType('5K')">
           <input type="radio" name="race_type" value="5K" />
-          <span class="option-icon">🏁</span>
+          <span class="option-icon"><i data-lucide="flag" class="icon"></i></span>
           <span class="option-label">5K</span>
           <span class="option-sub">3.1 miles</span>
         </label>
         <label class="option-card" onclick="pickRaceType('10K')">
           <input type="radio" name="race_type" value="10K" />
-          <span class="option-icon">🏃</span>
+          <span class="option-icon"><i data-lucide="timer" class="icon"></i></span>
           <span class="option-label">10K</span>
           <span class="option-sub">6.2 miles</span>
         </label>
         <label class="option-card" onclick="pickRaceType('Half Marathon')">
           <input type="radio" name="race_type" value="Half Marathon" />
-          <span class="option-icon">⭐</span>
+          <span class="option-icon"><i data-lucide="star" class="icon"></i></span>
           <span class="option-label">Half Marathon</span>
           <span class="option-sub">13.1 miles</span>
         </label>
         <label class="option-card" onclick="pickRaceType('Marathon')">
           <input type="radio" name="race_type" value="Marathon" />
-          <span class="option-icon">🏆</span>
+          <span class="option-icon"><i data-lucide="trophy" class="icon"></i></span>
           <span class="option-label">Marathon</span>
           <span class="option-sub">26.2 miles</span>
         </label>
@@ -196,19 +196,19 @@
         <div class="option-grid ob-load-grid">
           <label class="option-card" onclick="pickLoad('low')">
             <input type="radio" name="load" value="low" />
-            <span class="option-icon">😌</span>
+            <span class="option-icon"><i data-lucide="smile" class="icon"></i></span>
             <span class="option-label">Easy</span>
             <span class="option-sub">Light & consistent</span>
           </label>
           <label class="option-card" onclick="pickLoad('moderate')">
             <input type="radio" name="load" value="moderate" />
-            <span class="option-icon">💼</span>
+            <span class="option-icon"><i data-lucide="briefcase" class="icon"></i></span>
             <span class="option-label">Moderate</span>
             <span class="option-sub">Balanced effort</span>
           </label>
           <label class="option-card" onclick="pickLoad('high')">
             <input type="radio" name="load" value="high" />
-            <span class="option-icon">🔥</span>
+            <span class="option-icon"><i data-lucide="flame" class="icon"></i></span>
             <span class="option-label">High</span>
             <span class="option-sub">Push the limits</span>
           </label>
@@ -233,22 +233,22 @@
         <div class="option-grid ob-dist-grid">
           <label class="option-card" onclick="pickDistance('short')">
             <input type="radio" name="distance" value="short" />
-            <span class="option-icon">🏙️</span>
+            <span class="option-icon"><i data-lucide="building-2" class="icon"></i></span>
             <span class="option-label">Short <span class="option-sub">3–5 km</span></span>
           </label>
           <label class="option-card" onclick="pickDistance('medium')">
             <input type="radio" name="distance" value="medium" />
-            <span class="option-icon">🛤️</span>
+            <span class="option-icon"><i data-lucide="route" class="icon"></i></span>
             <span class="option-label">Medium <span class="option-sub">5–10 km</span></span>
           </label>
           <label class="option-card" onclick="pickDistance('long')">
             <input type="radio" name="distance" value="long" />
-            <span class="option-icon">🏞️</span>
+            <span class="option-icon"><i data-lucide="trees" class="icon"></i></span>
             <span class="option-label">Long <span class="option-sub">10 km+</span></span>
           </label>
           <label class="option-card" onclick="pickDistance('mixed')">
             <input type="radio" name="distance" value="mixed" />
-            <span class="option-icon">🔀</span>
+            <span class="option-icon"><i data-lucide="shuffle" class="icon"></i></span>
             <span class="option-label">Mixed <span class="option-sub">Variety</span></span>
           </label>
         </div>
@@ -301,7 +301,7 @@
       </div>
 
       <button class="btn btn-primary ob-continue-btn" id="analyze-btn" onclick="submitAssessment()">
-        Build My Profile 🏃
+        Build My Profile
       </button>
     </div>
 
@@ -309,7 +309,7 @@
     <div class="onboarding-step" id="step-followup">
       <h2 class="step-title">One quick question</h2>
       <div class="coach-bubble">
-        <span class="coach-avatar">🏃</span>
+        <span class="coach-avatar"><img src="/images/logo.svg" alt="" style="width:1em;height:1em;" /></span>
         <p id="followup-question" class="coach-message"></p>
       </div>
       <textarea class="form-control ob-textarea" id="followup-answer" rows="3"
@@ -321,7 +321,7 @@
     <!-- ── Final screen ── -->
     <div class="onboarding-step" id="step-final">
       <div class="ob-final">
-        <div class="ob-final-emoji">🎉</div>
+        <div class="ob-final-emoji"><i data-lucide="sparkles" class="icon"></i></div>
         <h2 id="final-title">You're all set!</h2>
         <p id="final-subtitle">Takbo Coach knows your profile and is ready to build a plan around you.</p>
         <button class="btn btn-primary ob-continue-btn" id="gen-plan-btn" onclick="generatePlan()">
@@ -339,7 +339,7 @@
 <!-- ── Generation overlay ── -->
 <div class="gen-overlay hidden" id="gen-overlay">
   <div class="gen-overlay-card">
-    <span class="gen-runner">🏃</span>
+    <span class="gen-runner"><img src="/images/logo.svg" alt="" style="width:52px;height:52px;" /></span>
     <h2 id="gen-overlay-title">Building your profile…</h2>
     <p id="gen-overlay-sub">Takbo Coach is personalising your experience</p>
     <div class="gen-steps" id="gen-steps"></div>
@@ -347,8 +347,11 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
 <script src="/js/api.js"></script>
 <script src="/js/auth.js"></script>
+<script src="/js/icons.js"></script>
 <script src="/js/onboarding.js"></script>
+<script>document.addEventListener("DOMContentLoaded", () => lucide.createIcons());</script>
 </body>
 </html>
