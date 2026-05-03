@@ -11,6 +11,14 @@ document.addEventListener("DOMContentLoaded", async () => {
   await fetchRuns();
 });
 
+// Refresh the runs list after a run is logged via the quick modal
+window._qlmOnRunLogged = async function () {
+  _skip = 0;
+  _allLoaded = [];
+  _hasMore = true;
+  await fetchRuns();
+};
+
 // ── Data fetching ─────────────────────────────────────────────
 async function fetchRuns() {
   document.getElementById("runs-loading").classList.remove("hidden");

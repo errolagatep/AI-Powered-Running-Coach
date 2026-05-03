@@ -20,11 +20,9 @@
   <input type="checkbox" id="nav-toggle" class="nav-toggle-input" />
   <ul class="navbar-nav">
     <li><a href="/dashboard.html">Dashboard</a></li>
-    <li><a href="/log_run.html" class="active">Log Run</a></li>
     <li><a href="/runs.html">Runs</a></li>
     <li><a href="/training_plan.html">Training Plan</a></li>
-    <li><a href="/progress.html">Progress</a></li>
-    <li><a href="/achievements.html">Achievements</a></li>
+    <li><a href="/stats.html">Stats</a></li>
   </ul>
   <div class="navbar-actions">
     <a href="/profile.html" class="navbar-user-link" id="navbar-user"></a>
@@ -123,7 +121,7 @@
     </div>
     <div id="feedback-text" class="feedback-box"></div>
     <div style="margin-top:16px;display:flex;gap:12px;">
-      <a href="/dashboard.html" class="btn btn-secondary">Back to Dashboard</a>
+      <a id="back-btn" href="/dashboard.html" class="btn btn-secondary">← Back to Dashboard</a>
       <a href="/training_plan.html" class="btn btn-primary">View Training Plan</a>
     </div>
   </div>

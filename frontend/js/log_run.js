@@ -61,7 +61,7 @@ async function handleSubmit(e) {
   const date   = document.getElementById("run-date").value;
 
   const body = {
-    date: new Date(date).toISOString(),
+    date: date + "T12:00:00",
     distance_km: dist,
     duration_min: totalMin,
     effort_level: effort,
@@ -105,6 +105,20 @@ function showFeedback(run) {
     document.getElementById("pab-reason").textContent = run.plan_adjustment_reason || "Your coach adjusted the plan to better match your current fitness.";
     banner.classList.remove("hidden");
     banner.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+
+  // Contextual back button based on ?from= query param
+  const from = new URLSearchParams(window.location.search).get("from");
+  const backBtn = document.getElementById("back-btn");
+  if (from === "training_plan") {
+    backBtn.href = "/training_plan.html";
+    backBtn.textContent = "← Back to Training Plan";
+  } else if (from === "runs") {
+    backBtn.href = "/runs.html";
+    backBtn.textContent = "← Back to Runs";
+  } else {
+    backBtn.href = "/dashboard.html";
+    backBtn.textContent = "← Back to Dashboard";
   }
 }
 

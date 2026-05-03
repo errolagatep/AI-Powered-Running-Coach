@@ -2521,3 +2521,208 @@ span.flatpickr-weekday {
   }
 }
 
+/* ── Floating Log Run button (FAB) ─────────────────────────────────────────── */
+.qlm-fab {
+  position: fixed;
+  bottom: 28px;
+  right: 28px;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 20px 0 16px;
+  height: 52px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 26px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 20px rgba(249,115,22,0.38);
+  transition: background 0.15s, transform 0.15s, box-shadow 0.15s;
+  letter-spacing: -.2px;
+}
+.qlm-fab:hover {
+  background: var(--accent-dim);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 28px rgba(249,115,22,0.46);
+}
+.qlm-fab:active { transform: translateY(0); }
+
+.qlm-fab-icon {
+  font-size: 24px;
+  font-weight: 300;
+  line-height: 1;
+  margin-top: -1px;
+}
+.qlm-fab-label {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+/* Modal width override for quick log */
+.qlm-card { max-width: 480px; }
+
+/* Stats page tabs ──────────────────────────────────────────────────────────── */
+.stats-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 2px solid var(--border);
+  margin-bottom: 28px;
+}
+.stats-tab-btn {
+  padding: 10px 20px;
+  border: none;
+  background: none;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-sec);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  border-radius: 6px 6px 0 0;
+  transition: color 0.15s, border-color 0.15s;
+}
+.stats-tab-btn:hover { color: var(--accent); }
+.stats-tab-btn.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+.stats-tab-panel { display: none; }
+.stats-tab-panel.active { display: block; }
+
+/* Onboarding setup checklist card ─────────────────────────────────────────── */
+.setup-checklist-card {
+  background: var(--card);
+  border: 1.5px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  margin-bottom: 24px;
+  box-shadow: var(--shadow);
+}
+.setup-checklist-title {
+  font-size: 15px;
+  font-weight: 700;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.setup-checklist-dismiss {
+  background: none;
+  border: none;
+  color: var(--text-sec);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+}
+.setup-checklist-items {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.setup-checklist-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: var(--text);
+}
+.setup-checklist-item.done { color: var(--text-sec); text-decoration: line-through; }
+.setup-check-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  flex-shrink: 0;
+  background: var(--border);
+  color: var(--text-sec);
+}
+.setup-check-icon.done {
+  background: var(--accent2);
+  color: #fff;
+}
+.setup-checklist-cta {
+  margin-top: 14px;
+}
+
+/* Training plan actions overflow menu ──────────────────────────────────────── */
+.plan-actions-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+.plan-overflow-menu {
+  position: relative;
+}
+.plan-overflow-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+.plan-overflow-dropdown {
+  display: none;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  min-width: 200px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  z-index: 120;
+  overflow: hidden;
+}
+.plan-overflow-dropdown.open { display: block; }
+.plan-overflow-item {
+  display: block;
+  width: 100%;
+  padding: 11px 16px;
+  text-align: left;
+  background: none;
+  border: none;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.plan-overflow-item:hover { background: var(--accent-glow); color: var(--accent); }
+.plan-overflow-item + .plan-overflow-item { border-top: 1px solid var(--border); }
+
+/* Non-race goal form fields ───────────────────────────────────────────────── */
+.goal-type-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.goal-type-tab {
+  padding: 6px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: 20px;
+  background: var(--surface, var(--card));
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-sec);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+.goal-type-tab:hover { border-color: var(--accent); color: var(--accent); }
+.goal-type-tab.active {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--accent);
+}
+

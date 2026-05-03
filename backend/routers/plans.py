@@ -16,6 +16,53 @@ def get_current_plan(
     current_user: dict = Depends(get_current_user),
     supabase: Client = Depends(get_supabase),
 ):
+    # For users with an active program, return the highest week_number plan so
+    # that recalibrating week N never shadows an already-generated week N+1.
+    prog_result = (
+        supabase.table("training_programs")
+        .select("id")
+        .eq("user_id", current_user["id"])
+        .eq("status", "active")
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    if prog_result.data:
+        program_id = prog_result.data[0]["id"]
+        prog_plan = (
+            supabase.table("training_plans")
+            .select("*")
+            .eq("user_id", current_user["id"])
+            .eq("program_id", program_id)
+            .order("week_number", desc=True)
+            .limit(1)
+            .execute()
+        )
+        if prog_plan.data:
+            plan = prog_plan.data[0]
+            # Build response directly (skip the fallback query below)
+            response = {
+                "id": plan["id"],
+                "week_start": plan["week_start"],
+                "generated_at": plan["generated_at"],
+                "plan": json.loads(plan["plan_json"]),
+                "program_id": plan.get("program_id"),
+                "week_number": plan.get("week_number"),
+                "total_weeks": None,
+                "end_date": None,
+            }
+            prog_meta = (
+                supabase.table("training_programs")
+                .select("total_weeks,end_date")
+                .eq("id", program_id)
+                .execute()
+            )
+            if prog_meta.data:
+                response["total_weeks"] = prog_meta.data[0]["total_weeks"]
+                response["end_date"] = str(prog_meta.data[0]["end_date"])[:10]
+            return response
+
+    # No active program — fall back to most recently generated plan
     result = (
         supabase.table("training_plans")
         .select("*")
@@ -88,12 +135,15 @@ def reschedule_workout(
     src_content = {f: days[src_idx].get(f) for f in CONTENT_FIELDS}
     tgt_content = {f: days[tgt_idx].get(f) for f in CONTENT_FIELDS}
 
+    rest_types = ("Rest", "Active Recovery", None)
+    if src_content.get("workout_type") in rest_types:
+        raise HTTPException(status_code=400, detail="Cannot reschedule a rest day — choose a workout day to move")
+
     for f in CONTENT_FIELDS:
         days[src_idx][f] = tgt_content[f]
         days[tgt_idx][f] = src_content[f]
 
     note = (body.note or "").strip()[:200] or None
-    rest_types = ("Rest", "Active Recovery", None)
 
     days[tgt_idx]["rescheduled_from"] = body.source_day
     days[tgt_idx]["reschedule_note"] = note
@@ -452,6 +502,8 @@ def create_program(
         )
     except ValueError as e:
         raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        raise HTTPException(status_code=500, detail="Program generation failed — please try again")
 
     # Mark any existing active programs as abandoned
     supabase.table("training_programs").update({"status": "abandoned"}).eq(

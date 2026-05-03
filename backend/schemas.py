@@ -1,5 +1,5 @@
-from pydantic import BaseModel, ConfigDict, EmailStr
-from typing import Optional, List
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from typing import Optional, List, Literal
 from datetime import datetime
 
 
@@ -139,9 +139,9 @@ class ProgramCreate(BaseModel):
     target_weight_kg: Optional[float] = None
     local_monday: Optional[str] = None  # YYYY-MM-DD from client for timezone-correct week start
     # Intensity preferences — re-confirmed at program build time; updates the assessment
-    load_capacity: Optional[str] = None      # 'low' | 'moderate' | 'high'
-    available_days: Optional[int] = None     # 1–7
-    preferred_distance: Optional[str] = None # 'short' | 'medium' | 'long' | 'mixed'
+    load_capacity: Optional[Literal["low", "moderate", "high"]] = None
+    available_days: Optional[int] = Field(default=None, ge=1, le=7)
+    preferred_distance: Optional[Literal["short", "medium", "long", "mixed"]] = None
 
 
 class ProgramResponse(BaseModel):
@@ -164,16 +164,16 @@ class NextWeekRequest(BaseModel):
 # ── Assessment ────────────────────────────────────────────────
 
 class AssessmentCreate(BaseModel):
-    experience_level: str       # 'beginner' | 'intermediate' | 'advanced'
+    experience_level: Literal["beginner", "intermediate", "advanced"]
     years_running: float        # 0, 0.5, 1, 2, 5+
     weekly_runs: int            # runs per week currently
     weekly_km: float            # km/week currently
-    primary_goal: str           # 'fitness' | 'speed' | 'endurance' | 'race_prep' | 'weight_loss'
+    primary_goal: Literal["fitness", "speed", "endurance", "race_prep", "weight_loss"]
     injury_history: Optional[str] = None
     medications: Optional[str] = None
-    available_days: int         # 1–7
-    preferred_distance: str     # 'short' | 'medium' | 'long' | 'mixed'
-    load_capacity: str          # 'low' | 'moderate' | 'high'
+    available_days: int = Field(ge=1, le=7)
+    preferred_distance: Literal["short", "medium", "long", "mixed"]
+    load_capacity: Literal["low", "moderate", "high"]
     weight_kg: Optional[float] = None
     max_hr: Optional[int] = None
     height_cm: Optional[float] = None

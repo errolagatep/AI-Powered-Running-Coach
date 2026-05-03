@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Achievements — Takbo Running Coach</title>
+  <title>Stats — Takbo Running Coach</title>
   <link rel="stylesheet" href="/css/style.css" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
 </head>
@@ -35,49 +35,114 @@
 
 <div class="container">
   <div class="page-header">
-    <h1>Achievements</h1>
-    <p>Unlock badges by reaching milestones in your running journey.</p>
+    <h1>Stats</h1>
+    <p>Your progress and achievements</p>
   </div>
 
-  <!-- XP + Level bar -->
-  <div class="card xp-summary-card" id="xp-summary" style="display:none;">
-    <div class="xp-summary-left">
-      <div class="level-badge" id="ach-level">Lv 1</div>
-      <div>
-        <div style="font-weight:600;font-size:15px;" id="ach-xp-text">0 XP</div>
-        <div style="font-size:12px;color:var(--text-sec);" id="ach-xp-next">0 XP to Level 2</div>
+  <!-- Tab bar -->
+  <div class="stats-tabs">
+    <button class="stats-tab-btn active" id="tab-btn-progress"     onclick="switchTab('progress')">📈 Progress</button>
+    <button class="stats-tab-btn"         id="tab-btn-achievements" onclick="switchTab('achievements')">🏆 Achievements</button>
+  </div>
+
+  <!-- ── Progress tab ───────────────────────────────────────────────────── -->
+  <div class="stats-tab-panel active" id="tab-progress">
+    <div id="progress-loading" class="loading"><div class="spinner"></div> Loading data…</div>
+
+    <div id="progress-content" class="hidden">
+      <div class="stats-grid" style="margin-bottom:28px;" id="stats-grid"></div>
+
+      <div class="chart-card">
+        <h2>📅 Weekly Mileage (last 12 weeks)</h2>
+        <div class="chart-wrapper">
+          <canvas id="weekly-chart"></canvas>
+        </div>
+      </div>
+
+      <div class="chart-card">
+        <h2>⚡ Pace per Run (last 30 runs)</h2>
+        <div class="chart-wrapper">
+          <canvas id="pace-chart"></canvas>
+        </div>
+      </div>
+
+      <div class="chart-card" id="hr-card">
+        <h2>❤️ Average Heart Rate</h2>
+        <div class="chart-wrapper">
+          <canvas id="hr-chart"></canvas>
+        </div>
       </div>
     </div>
-    <div class="xp-bar-wrap">
-      <div class="xp-bar" id="ach-xp-bar" style="width:0%"></div>
+
+    <div id="no-data" class="empty-state hidden">
+      <div class="empty-icon">📊</div>
+      <h3>No data yet</h3>
+      <p>Log at least one run to see your progress charts.</p>
+      <button class="btn btn-primary" onclick="openLogModal()">Log a Run</button>
     </div>
   </div>
 
-  <!-- Streak -->
-  <div class="card streak-card" id="streak-card" style="display:none;margin-bottom:24px;">
-    <span class="streak-fire">🔥</span>
-    <div>
-      <div class="streak-count" id="streak-count">0</div>
-      <div style="font-size:13px;color:var(--text-sec);">day streak</div>
+  <!-- ── Achievements tab ───────────────────────────────────────────────── -->
+  <div class="stats-tab-panel" id="tab-achievements">
+
+    <!-- XP + Level bar -->
+    <div class="card xp-summary-card" id="xp-summary" style="display:none;">
+      <div class="xp-summary-left">
+        <div class="level-badge" id="ach-level">Lv 1</div>
+        <div>
+          <div style="font-weight:600;font-size:15px;" id="ach-xp-text">0 XP</div>
+          <div style="font-size:12px;color:var(--text-sec);" id="ach-xp-next">0 XP to Level 2</div>
+        </div>
+      </div>
+      <div class="xp-bar-wrap">
+        <div class="xp-bar" id="ach-xp-bar" style="width:0%"></div>
+      </div>
     </div>
-    <div style="margin-left:auto;text-align:right;">
-      <div style="font-size:12px;color:var(--text-sec);">Longest</div>
-      <div style="font-weight:600;" id="streak-longest">0 days</div>
+
+    <!-- Streak -->
+    <div class="card streak-card" id="streak-card" style="display:none;margin-bottom:24px;">
+      <span class="streak-fire">🔥</span>
+      <div>
+        <div class="streak-count" id="streak-count">0</div>
+        <div style="font-size:13px;color:var(--text-sec);">day streak</div>
+      </div>
+      <div style="margin-left:auto;text-align:right;">
+        <div style="font-size:12px;color:var(--text-sec);">Longest</div>
+        <div style="font-weight:600;" id="streak-longest">0 days</div>
+      </div>
     </div>
+
+    <div id="ach-loading" class="loading"><div class="spinner"></div> Loading achievements…</div>
+    <div id="ach-grid" class="achievement-grid hidden"></div>
   </div>
 
-  <!-- Achievements grid -->
-  <div id="ach-loading" class="loading"><div class="spinner"></div> Loading achievements…</div>
-
-  <div id="ach-grid" class="achievement-grid hidden"></div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 <script src="/js/api.js"></script>
 <script src="/js/auth.js"></script>
+<script src="/js/progress.js"></script>
 <script src="/js/log_modal.js"></script>
 <script>
-// All possible achievements (must match backend ACHIEVEMENTS dict)
+// ── Tab switching ──────────────────────────────────────────────────────────
+function switchTab(tab) {
+  ["progress", "achievements"].forEach(t => {
+    document.getElementById(`tab-${t}`).classList.toggle("active", t === tab);
+    document.getElementById(`tab-btn-${t}`).classList.toggle("active", t === tab);
+  });
+  if (tab === "achievements" && !_achLoaded) loadAchievements();
+}
+
+// Honour ?tab= URL param on load
+document.addEventListener("DOMContentLoaded", () => {
+  const p = new URLSearchParams(window.location.search).get("tab");
+  if (p === "achievements") switchTab("achievements");
+});
+
+// ── Achievements ───────────────────────────────────────────────────────────
+let _achLoaded = false;
+
 const ALL_ACHIEVEMENTS = [
   { key: "first_run",       icon: "👟", title: "First Steps",        description: "Logged your very first run",              category: "Milestones" },
   { key: "runs_10",         icon: "🔟", title: "Ten Strong",          description: "Logged 10 runs",                          category: "Milestones" },
@@ -94,21 +159,20 @@ const ALL_ACHIEVEMENTS = [
   { key: "weekly_warrior",  icon: "🗓️", title: "Weekly Warrior",      description: "Ran 30+ km in a single week",             category: "Consistency"},
 ];
 
-document.addEventListener("DOMContentLoaded", async () => {
-  if (!requireAuth()) return;
-
+async function loadAchievements() {
+  _achLoaded = true;
   try {
     const [gam, unlocked] = await Promise.all([
       api.get("/gamification/"),
       api.get("/gamification/achievements"),
     ]);
-
     renderXP(gam);
     renderAchievements(unlocked);
   } catch (err) {
+    document.getElementById("ach-loading").textContent = "Failed to load achievements.";
     console.error(err);
   }
-});
+}
 
 function renderXP(gam) {
   const card = document.getElementById("xp-summary");
@@ -126,8 +190,7 @@ function renderXP(gam) {
     ? `${needed} XP to Level ${gam.level + 1}`
     : "Max level reached!";
 
-  const streakCard = document.getElementById("streak-card");
-  streakCard.style.display = "flex";
+  document.getElementById("streak-card").style.display = "flex";
   document.getElementById("streak-count").textContent = gam.current_streak;
   document.getElementById("streak-longest").textContent = `${gam.longest_streak} days`;
 }
@@ -140,7 +203,6 @@ function renderAchievements(unlocked) {
   const unlockedMap = {};
   unlocked.forEach(a => { unlockedMap[a.achievement_key] = a; });
 
-  // Group by category
   const categories = [...new Set(ALL_ACHIEVEMENTS.map(a => a.category))];
   let html = "";
   categories.forEach(cat => {

@@ -20,11 +20,9 @@
   <input type="checkbox" id="nav-toggle" class="nav-toggle-input" />
   <ul class="navbar-nav">
     <li><a href="/dashboard.html">Dashboard</a></li>
-    <li><a href="/log_run.html">Log Run</a></li>
     <li><a href="/runs.html">Runs</a></li>
     <li><a href="/training_plan.html" class="active">Training Plan</a></li>
-    <li><a href="/progress.html">Progress</a></li>
-    <li><a href="/achievements.html">Achievements</a></li>
+    <li><a href="/stats.html">Stats</a></li>
   </ul>
   <div class="navbar-actions">
     <a href="/profile.html" class="navbar-user-link" id="navbar-user"></a>
@@ -42,10 +40,20 @@
         <h1 style="font-size:26px;font-weight:800;letter-spacing:-.4px;">Weekly Training Plan</h1>
         <p style="color:var(--text-sec);margin-top:4px;">Personalised by Takbo Coach based on your training history and goals</p>
       </div>
-      <div style="display:flex;gap:10px;flex-wrap:wrap;flex-shrink:0;" id="header-actions">
-        <button class="btn btn-secondary hidden" id="recalibrate-btn" onclick="openRecalibrateModal()">🔄 Recalibrate Week</button>
-        <button class="btn btn-secondary" id="program-btn" onclick="openProgramModal()">📅 Build Full Program</button>
-        <button class="btn btn-primary hidden" id="generate-btn" onclick="generatePlan()">✨ Quick Plan</button>
+      <div class="plan-actions-wrap" id="header-actions">
+        <!-- Primary CTA — label/handler set by updateHeaderButtons() -->
+        <button class="btn btn-primary" id="plan-primary-btn" onclick="handlePrimaryAction()">✨ Generate This Week</button>
+
+        <!-- Overflow menu — shown when a plan/program exists -->
+        <div class="plan-overflow-menu hidden" id="plan-overflow-wrap">
+          <button class="btn btn-secondary plan-overflow-btn" id="plan-overflow-toggle" onclick="togglePlanOverflow(event)">
+            ⋯ More
+          </button>
+          <div class="plan-overflow-dropdown" id="plan-overflow-dropdown">
+            <button class="plan-overflow-item" id="overflow-recalibrate" onclick="closePlanOverflow();openRecalibrateModal();">🔄 Recalibrate this week</button>
+            <button class="plan-overflow-item" id="overflow-program"    onclick="closePlanOverflow();openProgramModal();">📅 Rebuild program</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -75,25 +83,53 @@
           <button class="btn btn-danger" style="font-size:12px;padding:6px 12px;" onclick="deleteGoal()">Remove Goal</button>
         </div>
         <div id="goal-form">
-          <div class="form-group">
-            <label for="race-type">Race Type</label>
-            <select class="form-control" id="race-type">
-              <option value="">Select race…</option>
-              <option value="5K">5K</option>
-              <option value="10K">10K</option>
-              <option value="Half Marathon">Half Marathon</option>
-              <option value="Marathon">Marathon</option>
-            </select>
+          <!-- Goal category tabs -->
+          <div class="goal-type-tabs" id="goal-type-tabs">
+            <button class="goal-type-tab active" data-category="race"    onclick="setGoalCategory('race')">Race</button>
+            <button class="goal-type-tab"         data-category="fitness" onclick="setGoalCategory('fitness')">General Fitness</button>
+            <button class="goal-type-tab"         data-category="weight_loss" onclick="setGoalCategory('weight_loss')">Weight Loss</button>
+            <button class="goal-type-tab"         data-category="endurance" onclick="setGoalCategory('endurance')">Endurance</button>
           </div>
-          <div class="form-group">
-            <label for="race-date">Race Date</label>
-            <input class="form-control" type="text" id="race-date" placeholder="Select race date" readonly />
+
+          <!-- Race fields (shown for race category) -->
+          <div id="goal-race-fields">
+            <div class="form-group">
+              <label for="race-type">Race Distance</label>
+              <select class="form-control" id="race-type">
+                <option value="">Select race…</option>
+                <option value="5K">5K</option>
+                <option value="10K">10K</option>
+                <option value="Half Marathon">Half Marathon</option>
+                <option value="Marathon">Marathon</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="race-date">Race Date</label>
+              <input class="form-control" type="text" id="race-date" placeholder="Select race date" readonly />
+            </div>
+            <div class="form-group">
+              <label for="target-time">Target Time <span style="opacity:.5">optional</span></label>
+              <input class="form-control" type="text" id="target-time" placeholder="e.g. 45:00 or 3:45:00" />
+              <div class="form-hint">Format: MM:SS for 5K/10K, H:MM:SS for half/marathon</div>
+            </div>
           </div>
-          <div class="form-group">
-            <label for="target-time">Target Time <span style="opacity:.5">optional</span></label>
-            <input class="form-control" type="text" id="target-time" placeholder="e.g. 45:00 or 3:45:00" />
-            <div class="form-hint">Format: MM:SS for 5K/10K, H:MM:SS for half/marathon</div>
+
+          <!-- Non-race fields (shown for other categories) -->
+          <div id="goal-nonrace-fields" class="hidden">
+            <div class="form-group">
+              <label for="goal-target-date">Target Date</label>
+              <input class="form-control" type="text" id="goal-target-date" placeholder="Select target date" readonly />
+            </div>
+            <div id="goal-desc-group" class="form-group">
+              <label for="goal-description">Goal Description <span style="opacity:.5">optional</span></label>
+              <input class="form-control" type="text" id="goal-description" placeholder="e.g. Run 40 km/week consistently" maxlength="200" />
+            </div>
+            <div id="goal-weight-group" class="form-group hidden">
+              <label for="goal-target-weight">Target Weight (kg)</label>
+              <input class="form-control" type="number" id="goal-target-weight" placeholder="e.g. 70" min="30" max="250" step="0.1" />
+            </div>
           </div>
+
           <button class="btn btn-primary btn-full" onclick="saveGoal()">Set Goal</button>
         </div>
       </div>
@@ -268,5 +304,6 @@
 <script src="/js/api.js?v=2"></script>
 <script src="/js/auth.js?v=2"></script>
 <script src="/js/training_plan.js?v=2"></script>
+<script src="/js/log_modal.js"></script>
 </body>
 </html>

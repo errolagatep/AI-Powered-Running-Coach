@@ -47,6 +47,14 @@ function formatDate(isoString) {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
 function effortClass(effort) {
   if (effort <= 4) return "effort-easy";
   if (effort <= 7) return "effort-mod";

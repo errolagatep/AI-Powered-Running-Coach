@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Progress — Takbo Running Coach</title>
   <link rel="stylesheet" href="/css/style.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
 </head>
 <body>
 
@@ -19,11 +20,9 @@
   <input type="checkbox" id="nav-toggle" class="nav-toggle-input" />
   <ul class="navbar-nav">
     <li><a href="/dashboard.html">Dashboard</a></li>
-    <li><a href="/log_run.html">Log Run</a></li>
     <li><a href="/runs.html">Runs</a></li>
     <li><a href="/training_plan.html">Training Plan</a></li>
-    <li><a href="/progress.html" class="active">Progress</a></li>
-    <li><a href="/achievements.html">Achievements</a></li>
+    <li><a href="/stats.html" class="active">Stats</a></li>
   </ul>
   <div class="navbar-actions">
     <a href="/profile.html" class="navbar-user-link" id="navbar-user"></a>
@@ -80,8 +79,10 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 <script src="/js/api.js"></script>
 <script src="/js/auth.js"></script>
 <script src="/js/progress.js"></script>
+<script src="/js/log_modal.js"></script>
 </body>
 </html>

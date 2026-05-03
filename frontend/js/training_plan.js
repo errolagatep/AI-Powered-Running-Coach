@@ -9,35 +9,61 @@ let viewingWeekNumber = null; // Week number the user is currently viewing (null
 let _isPastWeekView = false;  // True when viewing a past week (disables action buttons)
 
 // ── Header button state ───────────────────────────────────────
-// Rules:
-//   Program active  → [Recalibrate Week] [New Program];  hide Quick Plan
-//   No program, has plan → [Build Full Program] [Recalibrate]; hide Quick Plan
-//   No program, no plan → [Build Full Program] [Quick Plan]; hide Recalibrate
+// Single primary CTA changes meaning based on state:
+//   Nothing         → "Generate This Week's Plan"  (calls generatePlan)
+//   Program active  → "Generate Week N"            (calls generateNextWeek / generatePlan)
+//   Standalone plan → "Start a Training Program"   (calls openProgramModal)
+// Overflow menu appears whenever a plan or program exists.
 function updateHeaderButtons() {
-  const recalibrateBtn = document.getElementById("recalibrate-btn");
-  const programBtn     = document.getElementById("program-btn");
-  const generateBtn    = document.getElementById("generate-btn");
+  const primaryBtn  = document.getElementById("plan-primary-btn");
+  const overflowWrap = document.getElementById("plan-overflow-wrap");
+  const overflowProg = document.getElementById("overflow-program");
 
   if (currentProgram) {
-    // Program active — generation is driven by the program system
-    generateBtn.classList.add("hidden");
-    recalibrateBtn.classList.remove("hidden");
-    recalibrateBtn.textContent = "🔄 Recalibrate Week";
-    programBtn.textContent = "📅 New Program";
+    // In a program — primary action is generating the next week
+    primaryBtn.textContent = "📅 Build Full Program";
+    primaryBtn.classList.remove("btn-primary");
+    primaryBtn.classList.add("btn-secondary");
+    overflowWrap.classList.remove("hidden");
+    overflowProg.textContent = "📅 New Program";
+    // Disable overflow rebuild if viewing a past week
+    document.getElementById("overflow-recalibrate").disabled = _isPastWeekView;
   } else if (currentPlanData) {
-    // Standalone plan exists — recalibrate makes sense, fresh generate doesn't
-    generateBtn.classList.add("hidden");
-    recalibrateBtn.classList.remove("hidden");
-    recalibrateBtn.textContent = "🔄 Recalibrate from Efforts";
-    programBtn.textContent = "📅 Build Full Program";
+    // Standalone plan — nudge toward building a full program
+    primaryBtn.textContent = "📅 Start a Training Program";
+    primaryBtn.classList.remove("btn-secondary");
+    primaryBtn.classList.add("btn-primary");
+    overflowWrap.classList.remove("hidden");
+    overflowProg.textContent = "📅 Build Full Program";
+    document.getElementById("overflow-recalibrate").disabled = false;
   } else {
-    // Nothing yet — steer toward full program, quick plan as escape hatch
-    generateBtn.classList.remove("hidden");
-    generateBtn.textContent = "✨ Quick Plan";
-    recalibrateBtn.classList.add("hidden");
-    programBtn.textContent = "📅 Build Full Program";
+    // Nothing yet — primary action: generate a quick plan for this week
+    primaryBtn.textContent = "✨ Generate This Week's Plan";
+    primaryBtn.classList.remove("btn-secondary");
+    primaryBtn.classList.add("btn-primary");
+    overflowWrap.classList.add("hidden");
   }
 }
+
+function handlePrimaryAction() {
+  if (currentProgram) {
+    openProgramModal();
+  } else if (currentPlanData) {
+    openProgramModal();
+  } else {
+    generatePlan();
+  }
+}
+
+function togglePlanOverflow(e) {
+  e.stopPropagation();
+  document.getElementById("plan-overflow-dropdown").classList.toggle("open");
+}
+function closePlanOverflow() {
+  document.getElementById("plan-overflow-dropdown").classList.remove("open");
+}
+// Close dropdown when clicking elsewhere
+document.addEventListener("click", () => closePlanOverflow());
 
 function dismissGoalChangedBanner() {
   document.getElementById("goal-changed-banner").classList.add("hidden");
@@ -52,10 +78,30 @@ function getLocalMondayISO() {
   return `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, "0")}-${String(monday.getDate()).padStart(2, "0")}`;
 }
 
+let _activeGoalCategory = "race"; // "race" | "fitness" | "weight_loss" | "endurance"
+
+function setGoalCategory(cat) {
+  _activeGoalCategory = cat;
+  document.querySelectorAll(".goal-type-tab").forEach(btn => {
+    btn.classList.toggle("active", btn.dataset.category === cat);
+  });
+  const isRace = cat === "race";
+  document.getElementById("goal-race-fields").classList.toggle("hidden", !isRace);
+  document.getElementById("goal-nonrace-fields").classList.toggle("hidden", isRace);
+  document.getElementById("goal-weight-group").classList.toggle("hidden", cat !== "weight_loss");
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
   if (!requireAuth()) return;
 
   flatpickr("#race-date", {
+    minDate: "today",
+    dateFormat: "Y-m-d",
+    disableMobile: true,
+    allowInput: false,
+  });
+
+  flatpickr("#goal-target-date", {
     minDate: "today",
     dateFormat: "Y-m-d",
     disableMobile: true,
@@ -84,12 +130,15 @@ function renderGoal(goal) {
   const weeksLeft = Math.max(0, Math.round((raceDate - new Date()) / (7 * 24 * 60 * 60 * 1000)));
   const dateStr = raceDate.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
   const targetStr = goal.target_time_min ? ` · Target: ${formatTargetTime(goal.target_time_min)}` : "";
+  const isRace = !goal.goal_type || goal.goal_type === "race";
+  const dateLabel = isRace ? "Race date" : "Target date";
 
   const goalInfo = document.getElementById("goal-info");
   goalInfo.innerHTML =
     `<strong style="color:var(--text);font-size:15px;">${goal.race_type}</strong><br>
-     ${dateStr}<br>
-     <span style="color:var(--accent);">${weeksLeft} weeks to go</span>${targetStr}`;
+     ${dateLabel}: ${dateStr}<br>
+     <span style="color:var(--accent);">${weeksLeft} weeks to go</span>${targetStr}
+     ${goal.goal_description ? `<br><span style="font-size:12px;color:var(--text-sec);">${escapeHtml(goal.goal_description)}</span>` : ""}`;
   goalInfo.dataset.raceDate = goal.race_date;
 
   document.getElementById("goal-display").classList.remove("hidden");
@@ -103,27 +152,59 @@ function formatTargetTime(minutes) {
 }
 
 async function saveGoal() {
-  const raceType = document.getElementById("race-type").value;
-  const raceDate = document.getElementById("race-date").value;
-  const targetRaw = document.getElementById("target-time").value.trim();
+  const cat = _activeGoalCategory;
 
-  if (!raceType) { alert("Please select a race type"); return; }
-  if (!raceDate) { alert("Please select a race date"); return; }
+  if (cat === "race") {
+    const raceType = document.getElementById("race-type").value;
+    const raceDate = document.getElementById("race-date").value;
+    if (!raceType) { alert("Please select a race distance"); return; }
+    if (!raceDate) { alert("Please select a race date"); return; }
 
-  const body = {
-    race_type: raceType,
-    race_date: new Date(raceDate).toISOString(),
-  };
-
-  if (targetRaw) {
-    const minutes = parseTimeToMinutes(targetRaw);
-    if (minutes) body.target_time_min = minutes;
+    const body = {
+      race_type: raceType,
+      race_date: raceDate + "T12:00:00",
+      goal_type: "race",
+    };
+    const targetRaw = document.getElementById("target-time").value.trim();
+    if (targetRaw) {
+      const minutes = parseTimeToMinutes(targetRaw);
+      if (minutes) body.target_time_min = minutes;
+    }
+    return _submitGoal(body);
   }
 
+  // Non-race goals
+  const targetDate = document.getElementById("goal-target-date").value;
+  if (!targetDate) { alert("Please select a target date"); return; }
+
+  const goalTypeMap = {
+    fitness:     { race_type: "General Fitness",   goal_type: "fitness"     },
+    weight_loss: { race_type: "Weight Loss",        goal_type: "weight_loss" },
+    endurance:   { race_type: "Endurance Building", goal_type: "endurance"   },
+  };
+  const meta = goalTypeMap[cat];
+
+  const body = {
+    race_type: meta.race_type,
+    race_date: targetDate + "T12:00:00",
+    goal_type: meta.goal_type,
+  };
+
+  const desc = document.getElementById("goal-description").value.trim();
+  if (desc) body.goal_description = desc;
+
+  if (cat === "weight_loss") {
+    const tw = parseFloat(document.getElementById("goal-target-weight").value);
+    if (tw > 0) body.target_weight_kg = tw;
+  }
+
+  return _submitGoal(body);
+}
+
+async function _submitGoal(body) {
   try {
     const goal = await api.post("/goals/", body);
     renderGoal(goal);
-    // If a program is already active, prompt the user to rebuild it
     if (currentProgram) {
       document.getElementById("goal-changed-banner").classList.remove("hidden");
     }
@@ -132,10 +213,18 @@ async function saveGoal() {
   }
 }
 
-function parseTimeToMinutes(str) {
+// isPace=true → always treat 2-part as MM:SS (e.g. "5:30" = 5.5 min/km)
+// isPace=false (default, race target time) → 2-part treated as H:MM when first
+//   part is 1–9 (e.g. "3:30" → 210 min), else MM:SS (e.g. "45:00" → 45 min)
+function parseTimeToMinutes(str, isPace = false) {
   const parts = str.split(":").map(Number);
-  if (parts.length === 2) return parts[0] + parts[1] / 60;         // MM:SS
+  if (parts.some(isNaN)) return null;
   if (parts.length === 3) return parts[0] * 60 + parts[1] + parts[2] / 60; // H:MM:SS
+  if (parts.length === 2) {
+    if (isPace) return parts[0] + parts[1] / 60; // always MM:SS for pace
+    if (parts[0] >= 1 && parts[0] <= 9) return parts[0] * 60 + parts[1]; // H:MM for race time
+    return parts[0] + parts[1] / 60; // MM:SS for short race times (e.g. "45:00")
+  }
   return null;
 }
 
@@ -214,6 +303,14 @@ async function loadPlan() {
   }
 }
 
+// Refresh plan day status markers after a run is logged via the quick modal
+window._qlmOnRunLogged = async function (run) {
+  if (currentPlanData?.week_start) {
+    await loadWeekRuns(currentPlanData.week_start);
+    renderPlan(currentPlanData);
+  }
+};
+
 // Parse "YYYY-MM-DD..." as a local-date number (days since epoch) to avoid UTC shift
 function dateStrToLocalKey(dateStr) {
   return dateStr.slice(0, 10); // just keep "YYYY-MM-DD"
@@ -228,7 +325,7 @@ function addDaysToDateKey(dateKey, days) {
 async function loadWeekRuns(weekStart) {
   try {
     // Fetch recent runs — enough to cover this week's 7 days
-    const runs = await api.get("/runs/?limit=14");
+    const runs = await api.get("/runs/?limit=50");
     weekRunsMap = {};
     if (!runs || !runs.length) return;
 
@@ -249,7 +346,7 @@ async function loadWeekRuns(weekStart) {
 }
 
 async function generatePlan() {
-  const btn = document.getElementById("generate-btn");
+  const btn = document.getElementById("plan-primary-btn");
   btn.disabled = true;
   btn.textContent = "Generating…";
 
@@ -418,7 +515,7 @@ function openRunDetail(run) {
   const feedbackHtml = run.ai_feedback
     ? `<div class="ai-feedback-box">
          <div class="ai-feedback-label">🏃 Takbo Coach Feedback</div>
-         <div class="ai-feedback-text">${escapeHtml(run.ai_feedback)}</div>
+         <div class="ai-feedback-text">${renderMarkdown(run.ai_feedback)}</div>
        </div>`
     : `<div style="color:var(--text-sec);font-size:13px;">No coaching feedback available for this run.</div>`;
 
@@ -457,12 +554,15 @@ function closeRunDetailModal(e) {
   document.body.style.overflow = "";
 }
 
-function escapeHtml(str) {
-  return String(str)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+function renderMarkdown(text) {
+  return text
+    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+    .replace(/^### (.+)$/gm, '<h3 style="font-size:13px;color:var(--text);margin:8px 0 4px;">$1</h3>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\n\n+/g, '</p><p>')
+    .replace(/\n/g, '<br>')
+    .replace(/^(?!<)(.+)/gm, (m) => `<p>${m}</p>`)
+    .replace(/<p><\/p>/g, '');
 }
 
 // ── Recalibrate modal ─────────────────────────────────────────
@@ -482,8 +582,8 @@ async function recalibratePlan() {
   confirmBtn.disabled = true;
   confirmBtn.innerHTML = '<span class="btn-spinner"></span> Recalibrating…';
 
-  const recalibrateBtn = document.getElementById("recalibrate-btn");
-  recalibrateBtn.disabled = true;
+  const recalibrateBtn = document.getElementById("overflow-recalibrate");
+  if (recalibrateBtn) recalibrateBtn.disabled = true;
 
   document.getElementById("recalibrate-modal").classList.add("hidden");
   document.body.style.overflow = "";
@@ -508,7 +608,8 @@ async function recalibratePlan() {
     document.getElementById("plan-loading").classList.add("hidden");
     confirmBtn.disabled = false;
     confirmBtn.textContent = "Recalibrate plan";
-    recalibrateBtn.disabled = false;
+    if (recalibrateBtn) recalibrateBtn.disabled = false;
+    updateHeaderButtons();
   }
 }
 
@@ -1056,7 +1157,7 @@ async function createProgram() {
 
   const paceEl = document.getElementById("pm-target-pace");
   if (paceEl?.value) {
-    const mins = parseTimeToMinutes(paceEl.value);
+    const mins = parseTimeToMinutes(paceEl.value, true); // pace: always MM:SS
     if (mins) { payload.target_value = mins; payload.target_unit = "pace_per_km"; }
   }
 

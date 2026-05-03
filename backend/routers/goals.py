@@ -17,7 +17,7 @@ def set_goal(
     result = supabase.table("goals").insert({
         "user_id": current_user["id"],
         "race_type": data.race_type,
-        "race_date": data.race_date.isoformat(),
+        "race_date": data.race_date.strftime("%Y-%m-%d"),
         "target_time_min": data.target_time_min,
         "goal_type": data.goal_type,
         "goal_description": data.goal_description,

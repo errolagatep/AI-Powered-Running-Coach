@@ -1,8 +1,11 @@
+import logging
 import math
 from datetime import date, datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from supabase import Client
 from typing import List
+
+logger = logging.getLogger(__name__)
 from ..database import get_supabase
 from ..schemas import RunCreate, RunUpdate, RunResponse
 from ..auth import get_current_user
@@ -73,21 +76,20 @@ def _get_user_joined_date(user_id: str, supabase: Client) -> str:
 def _sync_achievements(user_id: str, supabase: Client, joined_date: str = None) -> list:
     """Recompute all achievements from run history with correct unlocked_at dates.
 
-    Wipes existing achievements and re-inserts them so dates are always accurate.
+    Non-destructive: inserts missing achievements and corrects existing dates via
+    individual updates. Never wipes the table, so a failed insert cannot leave
+    the user with zero achievements.
     Only runs with date >= joined_date are counted (defaults to user's account creation date).
     Returns list of newly unlocked achievement dicts (ones that weren't there before).
     """
     if joined_date is None:
         joined_date = _get_user_joined_date(user_id, supabase)
 
-    # Record which achievements the user already had before the reset
-    existing_keys = {
-        a["achievement_key"]
-        for a in supabase.table("achievements").select("achievement_key").eq("user_id", user_id).execute().data
+    # Build a map of existing achievements: key → row
+    existing_map = {
+        a["achievement_key"]: a
+        for a in supabase.table("achievements").select("*").eq("user_id", user_id).execute().data
     }
-
-    # Wipe all achievements so we can re-insert with correct dates
-    supabase.table("achievements").delete().eq("user_id", user_id).execute()
 
     # Fetch runs sorted oldest-first for chronological replay
     all_runs = (
@@ -151,7 +153,6 @@ def _sync_achievements(user_id: str, supabase: Client, joined_date: str = None) 
         weekly_last_date = {}
         for r in all_runs:
             d = date.fromisoformat(r["_date"])
-            # ISO week key: year + week number
             week_key = d.isocalendar()[:2]  # (year, week)
             weekly[week_key] += r["distance_km"]
             weekly_last_date[week_key] = r["_date"]
@@ -178,22 +179,27 @@ def _sync_achievements(user_id: str, supabase: Client, joined_date: str = None) 
 
     newly_unlocked = []
     for key, earned_date in unlock_dates.items():
-        if earned_date is None:
-            continue
-        if key not in ACHIEVEMENTS:
+        if earned_date is None or key not in ACHIEVEMENTS:
             continue
         meta = ACHIEVEMENTS[key]
-        is_new = key not in existing_keys
-        supabase.table("achievements").insert({
-            "user_id":         user_id,
-            "achievement_key": key,
-            "title":           meta["title"],
-            "description":     meta["description"],
-            "icon":            meta["icon"],
-            "unlocked_at":     earned_date + "T00:00:00+00:00",
-        }).execute()
-        if is_new:
+        expected_unlocked_at = earned_date + "T00:00:00+00:00"
+
+        if key not in existing_map:
+            # New achievement — insert it
+            supabase.table("achievements").insert({
+                "user_id":         user_id,
+                "achievement_key": key,
+                "title":           meta["title"],
+                "description":     meta["description"],
+                "icon":            meta["icon"],
+                "unlocked_at":     expected_unlocked_at,
+            }).execute()
             newly_unlocked.append({"achievement_key": key, **meta})
+        elif str(existing_map[key].get("unlocked_at", ""))[:10] != earned_date:
+            # Existing achievement with wrong date — update it
+            supabase.table("achievements").update({
+                "unlocked_at": expected_unlocked_at,
+            }).eq("id", existing_map[key]["id"]).execute()
 
     return newly_unlocked
 
@@ -420,7 +426,7 @@ def log_run(
 
     result = supabase.table("run_logs").insert({
         "user_id": current_user["id"],
-        "date": data.date.isoformat(),
+        "date": data.date.strftime("%Y-%m-%d"),
         "distance_km": data.distance_km,
         "duration_min": data.duration_min,
         "pace_per_km": pace,
@@ -487,16 +493,22 @@ def log_run(
                     f"Latest coaching feedback (use specific distances/paces mentioned here):\n{feedback[:1200]}"
                 ),
             )
+            # Derive week_start from the run's local date to avoid UTC off-by-one
+            run_date_str = str(saved_run.get("date", ""))[:10]
+            try:
+                run_date_obj = date.fromisoformat(run_date_str)
+                week_start_str = (run_date_obj - timedelta(days=run_date_obj.weekday())).isoformat()
+            except Exception:
+                week_start_str = (datetime.utcnow() - timedelta(days=datetime.utcnow().weekday())).strftime("%Y-%m-%d")
             supabase.table("training_plans").insert({
                 "user_id": current_user["id"],
-                "week_start": (datetime.utcnow() - timedelta(days=datetime.utcnow().weekday()))
-                              .replace(hour=0, minute=0, second=0, microsecond=0).isoformat(),
+                "week_start": week_start_str,
                 "plan_json": json.dumps(new_plan),
             }).execute()
             plan_adjusted = True
             plan_adjustment_reason = adjustment["reason"]
-    except Exception:
-        pass  # Plan adjustment is non-critical — never fail a run log because of it
+    except Exception as _adj_err:
+        logger.warning("Plan adjustment failed for user %s: %s", current_user["id"], _adj_err, exc_info=True)
 
     response_data = {
         **saved_run,
@@ -616,7 +628,7 @@ def update_run(
         return RunResponse.model_validate(existing.data[0])
 
     if "date" in patch:
-        patch["date"] = patch["date"].isoformat()
+        patch["date"] = patch["date"].strftime("%Y-%m-%d")
 
     # Recalculate pace if distance or duration changed
     current = existing.data[0]
@@ -632,7 +644,7 @@ def update_run(
 
 
 def _recalculate_gamification(user_id: str, supabase: Client):
-    """Recompute XP, level, and streak from scratch using only runs on/after account creation date."""
+    """Recompute XP, level, and streak from scratch, replaying pace-PR and streak bonuses."""
     joined_date = _get_user_joined_date(user_id, supabase)
 
     all_runs = (
@@ -640,7 +652,7 @@ def _recalculate_gamification(user_id: str, supabase: Client):
         .select("distance_km,effort_level,pace_per_km,date")
         .eq("user_id", user_id)
         .gte("date", joined_date)
-        .order("date", desc=True)
+        .order("date", desc=False)  # chronological for correct replay
         .execute()
         .data
     )
@@ -656,34 +668,40 @@ def _recalculate_gamification(user_id: str, supabase: Client):
         }, on_conflict="user_id").execute()
         return
 
-    total_xp = sum(int(r["distance_km"] * 10) + r["effort_level"] * 5 for r in all_runs)
+    # Build streak value at each unique run date (chronological)
+    unique_dates_asc = sorted(set(str(r["date"])[:10] for r in all_runs))
+    streak_at_date: dict = {}
+    _s = 1
+    streak_at_date[unique_dates_asc[0]] = 1
+    for i in range(1, len(unique_dates_asc)):
+        prev = date.fromisoformat(unique_dates_asc[i - 1])
+        curr = date.fromisoformat(unique_dates_asc[i])
+        _s = _s + 1 if (curr - prev).days == 1 else 1
+        streak_at_date[unique_dates_asc[i]] = _s
+
+    # Replay XP chronologically — mirrors _process_gamification logic
+    total_xp = 0
+    best_pace = None
+    for r in all_runs:
+        xp = int(r["distance_km"] * 10) + r["effort_level"] * 5
+        # Streak bonus (capped at 50), matching _process_gamification
+        run_streak = streak_at_date.get(str(r["date"])[:10], 1)
+        xp += min(run_streak * 2, 50)
+        # Pace PR bonus
+        if best_pace is not None and r["pace_per_km"] < best_pace:
+            xp += 50
+        if best_pace is None or r["pace_per_km"] < best_pace:
+            best_pace = r["pace_per_km"]
+        total_xp += xp
+
     new_level = level_from_xp(total_xp)
+    last_run_date = unique_dates_asc[-1]
 
-    # Unique run dates sorted descending
-    dates = sorted(set(str(r["date"])[:10] for r in all_runs), reverse=True)
-    last_run_date = dates[0]
-
-    # Current streak: only count if most recent run is today or yesterday
+    # Current streak: only active if most recent run is today or yesterday
     today_d = date.today()
-    most_recent = date.fromisoformat(dates[0])
-    current_streak = 0
-    if (today_d - most_recent).days <= 1:
-        current_streak = 1
-        for i in range(1, len(dates)):
-            if (date.fromisoformat(dates[i - 1]) - date.fromisoformat(dates[i])).days == 1:
-                current_streak += 1
-            else:
-                break
-
-    # Longest streak (full scan)
-    longest_streak = current_streak
-    running = 1
-    for i in range(1, len(dates)):
-        if (date.fromisoformat(dates[i - 1]) - date.fromisoformat(dates[i])).days == 1:
-            running += 1
-            longest_streak = max(longest_streak, running)
-        else:
-            running = 1
+    most_recent = date.fromisoformat(last_run_date)
+    current_streak = streak_at_date[last_run_date] if (today_d - most_recent).days <= 1 else 0
+    longest_streak = max(streak_at_date.values())
 
     supabase.table("user_gamification").upsert({
         "user_id": user_id,

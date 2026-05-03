@@ -34,6 +34,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     renderStats(progress, runs);
     renderGoalBanner(goal, plan);
     renderProfileIncompleteBanner();
+    renderSetupChecklist(goal, plan, runs);
     renderWeeklyRecap(runs, plan, gam);
     renderTodayWorkout(plan);
     renderRuns(runs);
@@ -98,6 +99,52 @@ function renderProfileIncompleteBanner() {
       </div>
     </div>`;
   el.classList.remove("hidden");
+}
+
+// ── Setup Checklist ────────────────────────────────────────────
+function renderSetupChecklist(goal, plan, runs) {
+  const STORAGE_KEY = "setup_checklist_dismissed";
+  if (localStorage.getItem(STORAGE_KEY) === "1") return;
+
+  const user = getUser();
+  const hasAssessment  = user?.onboarding_complete;
+  const hasGoal        = !!goal;
+  const hasProgram     = !!(plan?.program_id);
+  const hasFirstRun    = runs && runs.length > 0;
+
+  // Hide once all steps are complete
+  if (hasAssessment && hasGoal && hasProgram && hasFirstRun) {
+    localStorage.setItem(STORAGE_KEY, "1");
+    return;
+  }
+
+  const step = (done, label, href, cta) => `
+    <li class="setup-checklist-item${done ? " done" : ""}">
+      <span class="setup-check-icon${done ? " done" : ""}">${done ? "✓" : "·"}</span>
+      <span style="flex:1;">${label}</span>
+      ${!done && href ? `<a href="${href}" class="btn btn-secondary" style="font-size:12px;padding:4px 12px;">${cta}</a>` : ""}
+    </li>`;
+
+  const el = document.getElementById("setup-checklist");
+  el.innerHTML = `
+    <div class="setup-checklist-card">
+      <div class="setup-checklist-title">
+        <span>🚀 Get started with Takbo</span>
+        <button class="setup-checklist-dismiss" onclick="dismissSetupChecklist()" title="Dismiss">&times;</button>
+      </div>
+      <ul class="setup-checklist-items">
+        ${step(hasAssessment, "Complete your runner assessment",  "/onboarding.html", "Start")}
+        ${step(hasGoal,       "Set a training goal",             "/training_plan.html", "Set goal")}
+        ${step(hasProgram,    "Build your training program",     "/training_plan.html", "Build")}
+        ${step(hasFirstRun,   "Log your first run",              null, "")}
+      </ul>
+    </div>`;
+  el.classList.remove("hidden");
+}
+
+function dismissSetupChecklist() {
+  localStorage.setItem("setup_checklist_dismissed", "1");
+  document.getElementById("setup-checklist").classList.add("hidden");
 }
 
 // ── Weekly Recap ───────────────────────────────────────────────
@@ -211,10 +258,11 @@ function renderStats(progress, runs) {
   const weekKm = progress.weekly.km[progress.weekly.km.length - 1] || 0;
   document.getElementById("stat-week-km").textContent = weekKm.toFixed(1);
 
-  // Runs this week (count from weekly data index)
+  // Runs this week — Monday-based to match the rest of the app
   const today = new Date();
-  const weekStart = new Date(today);
-  weekStart.setDate(today.getDate() - today.getDay());
+  const dayOfWeek = today.getDay(); // 0=Sun
+  const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  const weekStart = new Date(today.getFullYear(), today.getMonth(), today.getDate() + mondayOffset);
   const weekRuns = runs.filter(r => new Date(r.date) >= weekStart).length;
   document.getElementById("stat-week-runs").textContent = weekRuns;
 
@@ -290,10 +338,33 @@ function renderTodayWorkout(planData) {
       <p class="today-workout-desc">${workout.description}</p>
       ${metrics}
       ${workout.notes ? `<p class="today-workout-notes">${workout.notes}</p>` : ""}
-      <a href="/training_plan.html" class="today-workout-link">View full week →</a>
+      ${!isRest
+        ? `<div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+             <button class="btn btn-primary" style="font-size:13px;padding:7px 16px;"
+               onclick="openLogModal({distance_km:${workout.distance_km || ''}})">
+               + Log this run
+             </button>
+             <a href="/training_plan.html" class="today-workout-link" style="margin:0;">View full week →</a>
+           </div>`
+        : `<a href="/training_plan.html" class="today-workout-link">View full week →</a>`
+      }
     </div>`;
   el.classList.remove("hidden");
 }
+
+// Refresh dashboard run list after a run is logged via the quick modal
+window._qlmOnRunLogged = async function () {
+  try {
+    const [runs, progress, gam] = await Promise.all([
+      api.get("/runs/?limit=10"),
+      api.get("/progress/"),
+      api.get("/gamification/").catch(() => null),
+    ]);
+    renderStats(progress, runs);
+    renderRuns(runs);
+    if (gam) renderGamification(gam);
+  } catch (_) {}
+};
 
 function isWithin7Days(dateStr) {
   const runDay    = dateStr.slice(0, 10); // "YYYY-MM-DD"
@@ -406,7 +477,7 @@ function runCard(run) {
           <span class="effort-badge ${cls}">${effort}</span>
           ${actions}
         </div>
-        ${run.notes ? `<p class="run-notes">${run.notes}</p>` : ""}
+        ${run.notes ? `<p class="run-notes">${escapeHtml(run.notes)}</p>` : ""}
         <div class="run-expandable"><div>${expandContent}</div></div>
       </div>
       ${mapPanel}
@@ -518,7 +589,7 @@ async function saveEdit() {
   if (totalMin <= 0)      { showModalAlert("Duration must be greater than 0."); return; }
 
   const body = {
-    date:         new Date(document.getElementById("edit-date").value).toISOString(),
+    date:         document.getElementById("edit-date").value + "T12:00:00",
     distance_km:  dist,
     duration_min: totalMin,
     effort_level: parseInt(document.getElementById("edit-effort").value),
@@ -616,7 +687,7 @@ function renderMarkdown(text) {
   // Simple markdown renderer for headings and paragraphs
   return text
     .replace(/^## (.+)$/gm, '<h2>$1</h2>')
-    .replace(/^### (.+)$/gm, '<h3 style="font-size:13px;color:var(--text);margin:8px 0 4px;">$3</h3>')
+    .replace(/^### (.+)$/gm, '<h3 style="font-size:13px;color:var(--text);margin:8px 0 4px;">$1</h3>')
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/\n\n/g, '</p><p>')
     .replace(/^(?!<[h])(.+)$/gm, (m) => m.startsWith('<') ? m : `<p>${m}</p>`)
