@@ -32,6 +32,20 @@ class UserResponse(BaseModel):
     avatar_url: Optional[str] = None
     created_at: datetime
     onboarding_complete: bool = False
+    email_verified: bool = False
+
+
+class VerificationSentResponse(BaseModel):
+    message: str
+    email: str
+
+
+class VerifyEmailRequest(BaseModel):
+    token: str
+
+
+class ResendVerificationRequest(BaseModel):
+    email: EmailStr
 
 
 class ProfileUpdate(BaseModel):

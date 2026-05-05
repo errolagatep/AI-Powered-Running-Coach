@@ -4,14 +4,14 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Takbo Running Coach — Sign In</title>
-  <link rel="icon" type="image/svg+xml" href="/images/logo.svg" />
+  <link rel="icon" type="image/png" href="/images/logo.png" />
   <link rel="stylesheet" href="/css/style.css" />
 </head>
 <body>
 <div class="auth-page">
   <div class="auth-card">
     <div class="auth-logo">
-      <img class="auth-logo-img" src="/images/logo.svg" alt="Takbo Running Coach" onerror="this.style.display='none';" />
+      <img class="auth-logo-img" src="/images/logo.png" alt="Takbo Running Coach" onerror="this.style.display='none';" />
     </div>
     <div class="auth-title">
       <span class="auth-title-takbo">TAKBO</span>
@@ -38,6 +38,18 @@
     </div>
 
     <div id="alert" class="alert alert-error hidden"></div>
+
+    <!-- Email not verified prompt (shown after failed login or after register) -->
+    <div id="verify-prompt" class="hidden" style="text-align:center;padding:8px 0 4px;">
+      <p style="font-size:14px;color:var(--text-sec);margin:0 0 12px;">
+        Check your inbox for a verification link.<br />
+        <span id="verify-email-hint" style="color:var(--text);font-weight:600;"></span>
+      </p>
+      <button class="btn btn-primary btn-full" id="resend-btn" onclick="handleResend()">
+        Resend Verification Email
+      </button>
+      <p id="resend-msg" class="hidden" style="font-size:13px;color:var(--text-sec);margin:10px 0 0;"></p>
+    </div>
 
     <!-- Login Form -->
     <form id="login-form" onsubmit="handleLogin(event)">
@@ -90,6 +102,7 @@
     document.getElementById("tab-login").classList.toggle("active", isLogin);
     document.getElementById("tab-register").classList.toggle("active", !isLogin);
     document.getElementById("alert").classList.add("hidden");
+    document.getElementById("verify-prompt").classList.add("hidden");
   }
 
   function showError(msg) {
@@ -98,12 +111,41 @@
     el.classList.remove("hidden");
   }
 
+  let _pendingVerifyEmail = "";
+
+  function showVerifyPrompt(email) {
+    _pendingVerifyEmail = email;
+    document.getElementById("alert").classList.add("hidden");
+    document.getElementById("verify-email-hint").textContent = email;
+    document.getElementById("verify-prompt").classList.remove("hidden");
+    document.getElementById("resend-msg").classList.add("hidden");
+  }
+
+  async function handleResend() {
+    const btn = document.getElementById("resend-btn");
+    btn.disabled = true;
+    btn.textContent = "Sending…";
+    const msgEl = document.getElementById("resend-msg");
+    msgEl.classList.add("hidden");
+    try {
+      await api.post("/auth/resend-verification", { email: _pendingVerifyEmail });
+      msgEl.textContent = "Sent! Check your inbox.";
+      msgEl.style.color = "var(--accent)";
+    } catch (err) {
+      msgEl.textContent = err.message;
+      msgEl.style.color = "#dc2626";
+    }
+    msgEl.classList.remove("hidden");
+    setTimeout(() => { btn.disabled = false; btn.textContent = "Resend Verification Email"; }, 60000);
+  }
+
   async function handleLogin(e) {
     e.preventDefault();
     const btn = document.getElementById("login-btn");
     btn.disabled = true;
     btn.textContent = "Signing in…";
     document.getElementById("alert").classList.add("hidden");
+    document.getElementById("verify-prompt").classList.add("hidden");
     try {
       const data = await api.post("/auth/login", {
         email: document.getElementById("login-email").value,
@@ -114,7 +156,11 @@
       localStorage.setItem("strava_sync_on_load", "1");
       window.location.href = "/dashboard.html";
     } catch (err) {
-      showError(err.message);
+      if (err.message === "email_not_verified") {
+        showVerifyPrompt(document.getElementById("login-email").value);
+      } else {
+        showError(err.message);
+      }
       btn.disabled = false;
       btn.textContent = "Sign In";
     }
@@ -126,6 +172,7 @@
     btn.disabled = true;
     btn.textContent = "Creating account…";
     document.getElementById("alert").classList.add("hidden");
+    document.getElementById("verify-prompt").classList.add("hidden");
     const body = {
       name:     document.getElementById("reg-name").value,
       email:    document.getElementById("reg-email").value,
@@ -133,10 +180,9 @@
     };
     try {
       const data = await api.post("/auth/register", body);
-      localStorage.setItem("token", data.access_token);
-      localStorage.setItem("user", JSON.stringify(data.user));
-      // New users go through onboarding; returning users skip it
-      window.location.href = data.user.onboarding_complete ? "/dashboard.html" : "/onboarding.html";
+      // Registration now requires email verification before issuing a JWT
+      showTab("login");
+      showVerifyPrompt(data.email);
     } catch (err) {
       showError(err.message);
       btn.disabled = false;

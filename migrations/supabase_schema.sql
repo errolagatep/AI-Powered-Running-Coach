@@ -173,6 +173,7 @@ CREATE INDEX IF NOT EXISTS idx_training_programs_user
     ON training_programs (user_id, created_at DESC);
 
 ALTER TABLE training_programs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE strava_tokens     ENABLE ROW LEVEL SECURITY;
 
 -- Link weekly plans to their parent program
 ALTER TABLE training_plans ADD COLUMN IF NOT EXISTS program_id   UUID REFERENCES training_programs(id) ON DELETE SET NULL;
@@ -190,3 +191,12 @@ ALTER TABLE goals ADD COLUMN IF NOT EXISTS goal_description TEXT;
 ALTER TABLE goals ADD COLUMN IF NOT EXISTS target_value      FLOAT;
 ALTER TABLE goals ADD COLUMN IF NOT EXISTS target_unit       TEXT;
 ALTER TABLE goals ADD COLUMN IF NOT EXISTS target_weight_kg  FLOAT;
+
+-- ── Email Verification ────────────────────────────────────────────────────────
+ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified              BOOLEAN     DEFAULT FALSE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verification_token    TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verification_sent_at  TIMESTAMPTZ;
+
+-- Mark all existing users (registered before this feature) as verified
+-- so they are not locked out. New registrations start as unverified.
+UPDATE users SET email_verified = TRUE WHERE email_verified IS NULL OR email_verified = FALSE;

@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Verify Email — Takbo Running Coach</title>
+  <link rel="icon" type="image/png" href="/images/logo.png" />
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+<div class="auth-page">
+  <div class="auth-card" style="text-align:center;">
+    <div style="margin-bottom:16px;">
+      <img src="/images/logo.png" alt="" style="width:48px;height:48px;" onerror="this.style.display='none';" />
+    </div>
+    <div class="auth-title" style="margin-bottom:24px;">
+      <span class="auth-title-takbo">TAKBO</span>
+      <span class="auth-title-coach">RUNNING COACH</span>
+    </div>
+
+    <!-- Loading state -->
+    <div id="state-loading">
+      <p style="color:var(--text-sec);font-size:15px;">Verifying your email…</p>
+    </div>
+
+    <!-- Success state -->
+    <div id="state-success" class="hidden">
+      <div style="font-size:48px;margin-bottom:12px;">
+        <svg width="56" height="56" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg" style="margin:0 auto;display:block;">
+          <circle cx="28" cy="28" r="28" fill="#e85d04" opacity="0.12"/>
+          <path d="M16 28.5L23.5 36L40 20" stroke="#e85d04" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <h2 style="font-size:20px;font-weight:700;margin:0 0 8px;">Email verified!</h2>
+      <p style="color:var(--text-sec);font-size:14px;margin:0 0 24px;">
+        Your account is ready. Redirecting you now…
+      </p>
+    </div>
+
+    <!-- Error state -->
+    <div id="state-error" class="hidden">
+      <div style="margin-bottom:12px;">
+        <svg width="56" height="56" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg" style="margin:0 auto;display:block;">
+          <circle cx="28" cy="28" r="28" fill="#dc2626" opacity="0.10"/>
+          <path d="M20 20L36 36M36 20L20 36" stroke="#dc2626" stroke-width="3" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <h2 style="font-size:20px;font-weight:700;margin:0 0 8px;">Verification failed</h2>
+      <p id="error-msg" style="color:var(--text-sec);font-size:14px;margin:0 0 24px;">
+        This link is invalid or has expired.
+      </p>
+      <a href="/index.html" class="btn btn-primary" style="display:inline-block;">
+        Back to Sign In
+      </a>
+    </div>
+  </div>
+</div>
+
+<script>
+(async function () {
+  const token = new URLSearchParams(window.location.search).get("token");
+
+  function show(id) {
+    ["state-loading", "state-success", "state-error"].forEach(s => {
+      document.getElementById(s).classList.toggle("hidden", s !== id);
+    });
+  }
+
+  if (!token) {
+    document.getElementById("error-msg").textContent = "No verification token found. Please use the link from your email.";
+    show("state-error");
+    return;
+  }
+
+  try {
+    const res = await fetch("/api/auth/verify-email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      document.getElementById("error-msg").textContent = data.detail || "Verification failed. Please try again.";
+      show("state-error");
+      return;
+    }
+
+    localStorage.setItem("token", data.access_token);
+    localStorage.setItem("user", JSON.stringify(data.user));
+
+    show("state-success");
+    setTimeout(() => {
+      window.location.href = data.user.onboarding_complete ? "/dashboard.html" : "/onboarding.html";
+    }, 1500);
+
+  } catch {
+    document.getElementById("error-msg").textContent = "Something went wrong. Please try again.";
+    show("state-error");
+  }
+})();
+</script>
+</body>
+</html>
