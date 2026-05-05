@@ -625,15 +625,26 @@ function showModalAlert(msg) {
   el.classList.remove("hidden");
 }
 
+function _revealStatCard(card, delayMs = 0) {
+  card.style.display = "";
+  // Force reflow so the browser registers display change before animation starts
+  void card.offsetWidth;
+  if (delayMs) {
+    setTimeout(() => card.classList.add("stat-card-reveal"), delayMs);
+  } else {
+    card.classList.add("stat-card-reveal");
+  }
+}
+
 function renderGamification(gam) {
-  // Streak card
+  // Streak card — reveal immediately
   const streakCard = document.getElementById("streak-stat-card");
-  streakCard.style.display = "";
+  _revealStatCard(streakCard);
   document.getElementById("stat-streak").textContent = gam.current_streak;
 
-  // Level + XP card
+  // Level + XP card — stagger 80ms after streak for a cascading feel
   const levelCard = document.getElementById("level-stat-card");
-  levelCard.style.display = "";
+  _revealStatCard(levelCard, 80);
   document.getElementById("stat-level").textContent = gam.level;
 
   const xpInLevel = gam.total_xp - gam.xp_for_current_level;

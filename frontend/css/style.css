@@ -2322,6 +2322,17 @@ html { scroll-behavior: smooth; }
   .stats-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
   .stat-card { padding: 14px 16px; }
   .stat-value { font-size: 26px; }
+
+  /* Scale down icons that are too large on small mobile screens */
+  .stat-card-icon        { font-size: 18px; }
+  .goal-banner .goal-icon { font-size: 20px; }
+  .option-icon           { font-size: 22px; }
+  .ach-icon              { font-size: 22px; }
+  .pab-icon              { font-size: 22px; }
+  .streak-fire           { font-size: 24px; }
+  .empty-state .empty-icon { font-size: 36px; }
+  .toast-icon            { font-size: 20px; }
+  .weekly-recap-headline .icon { font-size: 16px; }
 }
 
 /* ── Flatpickr theme overrides ───────────────────────────────────────────── */
@@ -2733,6 +2744,124 @@ span.flatpickr-weekday {
 }
 .plan-overflow-item:hover { background: var(--accent-glow); color: var(--accent); }
 .plan-overflow-item + .plan-overflow-item { border-top: 1px solid var(--border); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   VERIFY EMAIL PAGE
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.verify-card { text-align: center; }
+
+.verify-state { display: none; }
+.verify-state.active {
+  display: block;
+  animation: verifyReveal 0.4s cubic-bezier(0.22, 0.68, 0, 1.2) both;
+}
+
+@keyframes verifyReveal {
+  from { opacity: 0; transform: translateY(14px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0)    scale(1); }
+}
+
+.verify-spinner-wrap {
+  display: flex;
+  justify-content: center;
+  margin: 28px 0 16px;
+}
+
+.verify-spinner {
+  width: 40px;
+  height: 40px;
+  border-width: 3px;
+}
+
+.verify-loading-msg {
+  color: var(--text-sec);
+  font-size: 15px;
+  margin: 0 0 4px;
+}
+
+.verify-icon-wrap {
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 28px auto 18px;
+  animation: iconPop 0.5s cubic-bezier(0.22, 0.68, 0, 1.4) 0.15s both;
+}
+
+.verify-icon-success { background: rgba(249,115,22,0.12); color: var(--accent); }
+.verify-icon-error   { background: rgba(220,38,38,0.10);  color: #dc2626; }
+
+@keyframes iconPop {
+  from { transform: scale(0.5); opacity: 0; }
+  to   { transform: scale(1);   opacity: 1; }
+}
+
+.verify-title {
+  font-size: 21px;
+  font-weight: 800;
+  letter-spacing: -.3px;
+  margin: 0 0 8px;
+}
+
+.verify-msg {
+  color: var(--text-sec);
+  font-size: 14px;
+  margin: 0 0 12px;
+  line-height: 1.55;
+}
+
+.verify-countdown {
+  font-size: 13px;
+  color: var(--text-sec);
+  margin: 0 0 20px;
+}
+.verify-countdown strong { color: var(--accent); font-weight: 800; }
+
+.verify-cta { margin-top: 4px; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PASSWORD VISIBILITY TOGGLE
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.input-wrap { position: relative; }
+.input-wrap .form-control { padding-right: 44px; }
+
+.input-eye-toggle {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-sec);
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s;
+  line-height: 0;
+  border-radius: 4px;
+}
+.input-eye-toggle:hover { color: var(--text); }
+.input-eye-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.input-eye-toggle svg { width: 18px; height: 18px; display: block; pointer-events: none; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   STAT CARD REVEAL ANIMATION
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.stat-card-reveal {
+  animation: statCardReveal 0.45s cubic-bezier(0.22, 0.68, 0, 1.2) both;
+}
+
+@keyframes statCardReveal {
+  from { opacity: 0; transform: translateY(18px) scale(0.94); }
+  to   { opacity: 1; transform: translateY(0)    scale(1); }
+}
 
 /* Non-race goal form fields ───────────────────────────────────────────────── */
 .goal-type-tabs {

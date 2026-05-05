@@ -134,9 +134,9 @@ function runCard(run) {
   if (run.ai_feedback) {
     expandContent = `<div class="feedback-content">${renderMarkdown(run.ai_feedback)}</div>`;
   } else if (isWithin7Days(run.date)) {
-    expandContent = `<div style="padding:10px 0 4px;">
+    expandContent = `<div id="feedback-trigger-${run.id}" style="padding:10px 0 4px;">
       <button class="btn btn-secondary" style="font-size:13px;"
-        onclick="event.stopPropagation();generateFeedback('${run.id}',this)">
+        onclick="event.stopPropagation();showCoachNoteInput('${run.id}')">
         ${Icons.sparkles} Get Takbo Coach Feedback
       </button>
     </div>`;
@@ -195,11 +195,41 @@ function isWithin7Days(dateStr) {
   return runDay >= cutoffDay;
 }
 
-async function generateFeedback(runId, btn) {
-  btn.disabled = true;
-  btn.textContent = "Generating…";
+function showCoachNoteInput(runId) {
+  const container = document.getElementById(`feedback-trigger-${runId}`);
+  if (!container) return;
+  container.innerHTML = `
+    <div onclick="event.stopPropagation();" style="display:flex;flex-direction:column;gap:8px;padding:4px 0;">
+      <textarea id="coach-note-${runId}" rows="2" class="form-control"
+        placeholder="Any context for the coach? (optional) — e.g. "slept poorly", "dehydrated", "running at altitude"…"
+        style="font-size:13px;resize:vertical;"></textarea>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-primary" style="font-size:13px;" id="generate-btn-${runId}"
+          onclick="event.stopPropagation();generateFeedback('${runId}')">
+          ${Icons.sparkles} Generate Feedback
+        </button>
+        <button class="btn btn-secondary" style="font-size:13px;"
+          onclick="event.stopPropagation();generateFeedback('${runId}')">
+          Skip
+        </button>
+      </div>
+    </div>`;
+  const ta = document.getElementById(`coach-note-${runId}`);
+  if (ta) ta.focus();
+}
+
+async function generateFeedback(runId) {
+  const noteEl = document.getElementById(`coach-note-${runId}`);
+  const coachNote = noteEl ? noteEl.value.trim() : "";
+  const container = document.getElementById(`feedback-trigger-${runId}`);
+  if (container) {
+    container.innerHTML = `<div style="padding:10px 0 4px;color:var(--text-sec);font-size:13px;">
+      <span class="spinner" style="display:inline-block;width:14px;height:14px;border-width:2px;vertical-align:middle;margin-right:6px;"></span>Generating feedback…
+    </div>`;
+  }
   try {
-    const updated = await api.post(`/runs/${runId}/regenerate`, {});
+    const body = coachNote ? { coach_note: coachNote } : {};
+    const updated = await api.post(`/runs/${runId}/regenerate`, body);
     const idx = _allLoaded.findIndex(r => r.id === runId);
     if (idx !== -1) _allLoaded[idx] = updated;
     const card = document.getElementById(`rcard-${runId}`);
@@ -210,9 +240,17 @@ async function generateFeedback(runId, btn) {
       initRouteMaps([updated]);
     }
   } catch (err) {
-    btn.disabled = false;
-    btn.innerHTML = `${Icons.sparkles} Get Takbo Coach Feedback`;
-    alert(err.message || "Failed to generate feedback.");
+    if (container) {
+      container.innerHTML = `<div style="padding:10px 0 4px;">
+        <button class="btn btn-secondary" style="font-size:13px;"
+          onclick="event.stopPropagation();showCoachNoteInput('${runId}')">
+          ${Icons.sparkles} Get Takbo Coach Feedback
+        </button>
+        <p style="font-size:12px;color:var(--error,#e53e3e);margin-top:6px;">${err.message || "Failed to generate feedback."}</p>
+      </div>`;
+    } else {
+      alert(err.message || "Failed to generate feedback.");
+    }
   }
 }
 

@@ -55,10 +55,11 @@ async function handleSubmit(e) {
   if (dist <= 0) { showAlert("Distance must be greater than 0"); return; }
   if (totalMin <= 0) { showAlert("Duration must be greater than 0"); return; }
 
-  const hr     = document.getElementById("run-hr").value;
-  const effort = parseInt(document.getElementById("run-effort").value);
-  const notes  = document.getElementById("run-notes").value.trim();
-  const date   = document.getElementById("run-date").value;
+  const hr         = document.getElementById("run-hr").value;
+  const effort     = parseInt(document.getElementById("run-effort").value);
+  const notes      = document.getElementById("run-notes").value.trim();
+  const coachNote  = document.getElementById("coach-note").value.trim();
+  const date       = document.getElementById("run-date").value;
 
   const body = {
     date: date + "T12:00:00",
@@ -68,6 +69,7 @@ async function handleSubmit(e) {
   };
   if (hr) body.heart_rate_avg = parseInt(hr);
   if (notes) body.notes = notes;
+  if (coachNote) body.coach_note = coachNote;
 
   // Show loading
   document.getElementById("form-card").classList.add("hidden");

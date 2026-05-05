@@ -9,97 +9,88 @@
 </head>
 <body>
 <div class="auth-page">
-  <div class="auth-card" style="text-align:center;">
-    <div style="margin-bottom:16px;">
-      <img src="/images/logo.png" alt="" style="width:48px;height:48px;" onerror="this.style.display='none';" />
+  <div class="auth-card verify-card">
+    <div class="auth-logo">
+      <img class="auth-logo-img" src="/images/logo.png" alt="Takbo Running Coach" onerror="this.style.display='none';" />
     </div>
-    <div class="auth-title" style="margin-bottom:24px;">
+    <div class="auth-title">
       <span class="auth-title-takbo">TAKBO</span>
       <span class="auth-title-coach">RUNNING COACH</span>
     </div>
 
-    <!-- Loading state -->
-    <div id="state-loading">
-      <p style="color:var(--text-sec);font-size:15px;">Verifying your email…</p>
+    <!-- Verifying state (shown by default until hash is parsed) -->
+    <div id="state-loading" class="verify-state active">
+      <div class="verify-spinner-wrap">
+        <div class="spinner verify-spinner"></div>
+      </div>
+      <p class="verify-loading-msg">Verifying your email…</p>
     </div>
 
     <!-- Success state -->
-    <div id="state-success" class="hidden">
-      <div style="font-size:48px;margin-bottom:12px;">
-        <svg width="56" height="56" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg" style="margin:0 auto;display:block;">
-          <circle cx="28" cy="28" r="28" fill="#e85d04" opacity="0.12"/>
-          <path d="M16 28.5L23.5 36L40 20" stroke="#e85d04" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    <div id="state-success" class="verify-state">
+      <div class="verify-icon-wrap verify-icon-success" aria-hidden="true">
+        <svg width="30" height="30" viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M5 15.5L12 22.5L25 9" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
       </div>
-      <h2 style="font-size:20px;font-weight:700;margin:0 0 8px;">Email verified!</h2>
-      <p style="color:var(--text-sec);font-size:14px;margin:0 0 24px;">
-        Your account is ready. Redirecting you now…
-      </p>
+      <h2 class="verify-title">Email verified!</h2>
+      <p class="verify-msg">Your account is ready. You'll be signed in automatically.</p>
+      <p class="verify-countdown" id="success-countdown">Redirecting in <strong>5</strong>s</p>
+      <a href="/index.html" class="btn btn-primary btn-full verify-cta">Sign in now</a>
     </div>
 
     <!-- Error state -->
-    <div id="state-error" class="hidden">
-      <div style="margin-bottom:12px;">
-        <svg width="56" height="56" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg" style="margin:0 auto;display:block;">
-          <circle cx="28" cy="28" r="28" fill="#dc2626" opacity="0.10"/>
-          <path d="M20 20L36 36M36 20L20 36" stroke="#dc2626" stroke-width="3" stroke-linecap="round"/>
+    <div id="state-error" class="verify-state">
+      <div class="verify-icon-wrap verify-icon-error" aria-hidden="true">
+        <svg width="30" height="30" viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M8 8L22 22M22 8L8 22" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
         </svg>
       </div>
-      <h2 style="font-size:20px;font-weight:700;margin:0 0 8px;">Verification failed</h2>
-      <p id="error-msg" style="color:var(--text-sec);font-size:14px;margin:0 0 24px;">
-        This link is invalid or has expired.
-      </p>
-      <a href="/index.html" class="btn btn-primary" style="display:inline-block;">
-        Back to Sign In
-      </a>
+      <h2 class="verify-title">Verification failed</h2>
+      <p class="verify-msg" id="error-msg">This link is invalid or has expired.</p>
+      <a href="/index.html" class="btn btn-primary btn-full verify-cta">Back to Sign In</a>
     </div>
   </div>
 </div>
 
 <script>
-(async function () {
-  const token = new URLSearchParams(window.location.search).get("token");
+  // Supabase redirects here after verifying the token.
+  // Hash params: #access_token=...&type=signup  (success)
+  //              #error=...&error_description=... (failure)
+  const hash  = new URLSearchParams(window.location.hash.slice(1));
+  const type  = hash.get("type");
+  const error = hash.get("error_description") || hash.get("error");
 
-  function show(id) {
-    ["state-loading", "state-success", "state-error"].forEach(s => {
-      document.getElementById(s).classList.toggle("hidden", s !== id);
-    });
-  }
-
-  if (!token) {
-    document.getElementById("error-msg").textContent = "No verification token found. Please use the link from your email.";
-    show("state-error");
-    return;
-  }
-
-  try {
-    const res = await fetch("/api/auth/verify-email", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token }),
-    });
-
-    const data = await res.json();
-
-    if (!res.ok) {
-      document.getElementById("error-msg").textContent = data.detail || "Verification failed. Please try again.";
-      show("state-error");
-      return;
-    }
-
-    localStorage.setItem("token", data.access_token);
-    localStorage.setItem("user", JSON.stringify(data.user));
-
-    show("state-success");
+  function showState(id) {
+    // Hold the loading state briefly so the transition reads as intentional
     setTimeout(() => {
-      window.location.href = data.user.onboarding_complete ? "/dashboard.html" : "/onboarding.html";
-    }, 1500);
-
-  } catch {
-    document.getElementById("error-msg").textContent = "Something went wrong. Please try again.";
-    show("state-error");
+      document.getElementById("state-loading").classList.remove("active");
+      document.getElementById(id).classList.add("active");
+    }, 600);
   }
-})();
+
+  if (error) {
+    document.getElementById("error-msg").textContent = decodeURIComponent(error);
+    showState("state-error");
+  } else if (type === "signup" || type === "email") {
+    showState("state-success");
+    // Auto-redirect countdown: 5 → 0, then navigate
+    let secs = 5;
+    const strong = document.querySelector("#success-countdown strong");
+    const timer = setInterval(() => {
+      secs--;
+      if (strong) strong.textContent = secs;
+      if (secs <= 0) {
+        clearInterval(timer);
+        window.location.href = "/index.html";
+      }
+    }, 1000);
+  } else {
+    // Direct visit with no params — confused user
+    document.getElementById("error-msg").textContent =
+      "No verification token found. Please use the link from your email.";
+    showState("state-error");
+  }
 </script>
 </body>
 </html>

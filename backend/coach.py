@@ -125,12 +125,13 @@ Coaching feedback summary:
 {feedback[:800]}
 
 Adjust the plan ONLY if there is a clear, specific reason — for example:
+- Significantly elevated heart rate on an easy/recovery run (suggests fatigue or overreaching — even a single instance is enough)
 - Consistent overexertion or underperformance across multiple recent runs
 - A new or worsening injury signal
 - A significant unexpected fitness leap warranting progression
-- Pace or effort drifting far outside the plan's intent for several sessions
+- Pace or effort drifting far outside the plan's intent
 
-Do NOT adjust for a single normal run, minor variations, or if the athlete is following the plan well.
+Do NOT adjust for a single run where metrics are within normal variation, or if the athlete is clearly following the plan well.
 
 Reply with JSON only (no explanation outside the JSON):
 {{"adjust": true or false, "reason": "one sentence reason — empty string if adjust is false"}}"""
@@ -155,6 +156,62 @@ Reply with JSON only (no explanation outside the JSON):
             except (json.JSONDecodeError, KeyError):
                 break
     return {"adjust": False, "reason": ""}
+
+
+_DAYS_ORDER = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+
+
+def adjust_upcoming_workouts(plan_json: dict, today_day_name: str, reason: str) -> dict:
+    """Soften the remaining workouts this week after a fatigue/overreaching signal.
+
+    Calls Claude to modify only the days after today, leaving past workouts untouched.
+    Returns the modified plan_json.
+    """
+    try:
+        today_idx = _DAYS_ORDER.index(today_day_name)
+    except ValueError:
+        return plan_json
+
+    upcoming = [d for d in plan_json.get("days", []) if d.get("day") in _DAYS_ORDER and _DAYS_ORDER.index(d["day"]) > today_idx]
+    if not upcoming:
+        return plan_json
+
+    prompt = f"""A runner just completed a workout that revealed a fatigue signal: {reason}
+
+The following days remain in their training week and need to be softened for recovery:
+{json.dumps(upcoming, indent=2)}
+
+Adjust each day with these rules:
+- "Rest" and "Active Recovery" days stay exactly as-is
+- "Hard" intensity workouts → change to "Easy" intensity, swap workout_type to "Easy Run" or "Rest" as appropriate
+- "Moderate" intensity workouts → reduce to "Easy" intensity, reduce distance_km by 20–25%
+- "Easy" intensity workouts → keep the type but reduce distance_km by 10–15%
+- Update each day's "notes" field with a brief one-sentence explanation of the change (e.g. "Reduced load for recovery after elevated HR signal")
+- Do not change the "day" field
+
+Return ONLY the modified days array as valid JSON — no explanation, no markdown fences."""
+
+    response = get_client().messages.create(
+        model="claude-opus-4-6",
+        max_tokens=800,
+        system="You are a conservative running coach prioritising athlete recovery. Return only valid JSON.",
+        messages=[{"role": "user", "content": prompt}],
+    )
+    for block in response.content:
+        if block.type == "text":
+            text = block.text.strip()
+            if text.startswith("```"):
+                lines = text.split("\n")
+                text = "\n".join(lines[1:]).rstrip("`").strip()
+            try:
+                modified_upcoming = json.loads(text)
+                past_and_today = [d for d in plan_json.get("days", []) if d.get("day") not in _DAYS_ORDER or _DAYS_ORDER.index(d["day"]) <= today_idx]
+                plan_json = dict(plan_json)
+                plan_json["days"] = past_and_today + modified_upcoming
+                return plan_json
+            except (json.JSONDecodeError, KeyError, ValueError):
+                break
+    return plan_json
 
 
 def _infer_workout_type(run: dict, recent_runs: list) -> str:
@@ -230,6 +287,7 @@ def generate_run_feedback(
     assessment: Optional[dict] = None,
     planned_workout: Optional[dict] = None,
     personal_bests: Optional[dict] = None,
+    coach_note: Optional[str] = None,
 ) -> str:
     """Generate AI coaching feedback for a completed run."""
     # Determine workout type context
@@ -259,6 +317,7 @@ def generate_run_feedback(
     is_quality_session = workout_type in ("Tempo Run", "Interval Training")
     notes = run.get("notes") or ""
     has_lap_data = any(kw in notes.lower() for kw in ["lap", "split", "rep", "x ", "400", "800", "1km"])
+    coach_note_ctx = f"\n- Athlete note to coach: {coach_note}" if coach_note and coach_note.strip() else ""
 
     parts = [f"""## Current Run
 - Date: {str(run.get("date", ""))[:10]}
@@ -268,7 +327,7 @@ def generate_run_feedback(
 - Pace: {_fmt_pace(run["pace_per_km"])} min/km
 - Heart Rate: {run.get("heart_rate_avg") or "Not recorded"} bpm
 - Effort Level: {run["effort_level"]}/10
-- Notes: {notes or "None"}"""]
+- Notes: {notes or "None"}{coach_note_ctx}"""]
 
     parts.append(workout_ctx)
 

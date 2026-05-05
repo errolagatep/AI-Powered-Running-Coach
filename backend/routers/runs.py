@@ -7,10 +7,10 @@ from typing import List
 
 logger = logging.getLogger(__name__)
 from ..database import get_supabase
-from ..schemas import RunCreate, RunUpdate, RunResponse
+from ..schemas import RunCreate, RunUpdate, RunResponse, RegenerateRequest
 from ..auth import get_current_user
 import json
-from ..coach import generate_run_feedback, should_adjust_plan, generate_weekly_plan
+from ..coach import generate_run_feedback, should_adjust_plan, generate_weekly_plan, adjust_upcoming_workouts
 
 router = APIRouter(prefix="/api/runs", tags=["runs"])
 
@@ -464,6 +464,7 @@ def log_run(
         assessment=assessment,
         planned_workout=planned_workout,
         personal_bests=personal_bests,
+        coach_note=data.coach_note,
     )
 
     updated = supabase.table("run_logs").update({"ai_feedback": feedback}).eq("id", run["id"]).execute()
@@ -482,29 +483,56 @@ def log_run(
             feedback=feedback,
         )
         if adjustment["adjust"]:
-            goal = _latest_goal(current_user["id"], supabase)
-            new_plan = generate_weekly_plan(
-                recent_runs=recent.data,
-                goal=goal,
-                user_name=current_user["name"],
-                assessment=assessment,
-                coach_notes=(
-                    f"Reason for plan update: {adjustment['reason']}\n\n"
-                    f"Latest coaching feedback (use specific distances/paces mentioned here):\n{feedback[:1200]}"
-                ),
-            )
-            # Derive week_start from the run's local date to avoid UTC off-by-one
             run_date_str = str(saved_run.get("date", ""))[:10]
             try:
                 run_date_obj = date.fromisoformat(run_date_str)
                 week_start_str = (run_date_obj - timedelta(days=run_date_obj.weekday())).isoformat()
+                today_day_name = run_date_obj.strftime("%A")
             except Exception:
                 week_start_str = (datetime.utcnow() - timedelta(days=datetime.utcnow().weekday())).strftime("%Y-%m-%d")
-            supabase.table("training_plans").insert({
-                "user_id": current_user["id"],
-                "week_start": week_start_str,
-                "plan_json": json.dumps(new_plan),
-            }).execute()
+                today_day_name = datetime.utcnow().strftime("%A")
+
+            # Try to surgically soften remaining days in the existing plan
+            existing_plan_res = (
+                supabase.table("training_plans")
+                .select("id,plan_json,program_id,week_number")
+                .eq("user_id", current_user["id"])
+                .eq("week_start", week_start_str)
+                .order("generated_at", desc=True)
+                .limit(1)
+                .execute()
+            )
+            if existing_plan_res.data:
+                existing = existing_plan_res.data[0]
+                try:
+                    existing_plan_json = json.loads(existing["plan_json"]) if isinstance(existing["plan_json"], str) else existing["plan_json"]
+                    modified_plan = adjust_upcoming_workouts(existing_plan_json, today_day_name, adjustment["reason"])
+                    supabase.table("training_plans").update({
+                        "plan_json": json.dumps(modified_plan),
+                    }).eq("id", existing["id"]).execute()
+                except Exception as _mod_err:
+                    logger.warning("Targeted plan adjustment failed, falling back to regenerate: %s", _mod_err)
+                    existing_plan_res = None  # fall through to regenerate
+
+            if not existing_plan_res or not existing_plan_res.data:
+                # No existing plan for this week — generate a new one
+                goal = _latest_goal(current_user["id"], supabase)
+                new_plan = generate_weekly_plan(
+                    recent_runs=recent.data,
+                    goal=goal,
+                    user_name=current_user["name"],
+                    assessment=assessment,
+                    coach_notes=(
+                        f"Reason for plan update: {adjustment['reason']}\n\n"
+                        f"Latest coaching feedback:\n{feedback[:1200]}"
+                    ),
+                )
+                supabase.table("training_plans").insert({
+                    "user_id": current_user["id"],
+                    "week_start": week_start_str,
+                    "plan_json": json.dumps(new_plan),
+                }).execute()
+
             plan_adjusted = True
             plan_adjustment_reason = adjustment["reason"]
     except Exception as _adj_err:
@@ -558,6 +586,7 @@ def get_run(
 @router.post("/{run_id}/regenerate", response_model=RunResponse)
 def regenerate_feedback(
     run_id: str,
+    body: RegenerateRequest = RegenerateRequest(),
     current_user: dict = Depends(get_current_user),
     supabase: Client = Depends(get_supabase),
 ):
@@ -600,6 +629,7 @@ def regenerate_feedback(
         assessment=assessment,
         planned_workout=planned_workout,
         personal_bests=personal_bests,
+        coach_note=body.coach_note,
     )
 
     updated = supabase.table("run_logs").update({"ai_feedback": feedback}).eq("id", run_id).execute()

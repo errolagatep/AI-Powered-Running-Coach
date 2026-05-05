@@ -192,6 +192,10 @@ ALTER TABLE goals ADD COLUMN IF NOT EXISTS target_value      FLOAT;
 ALTER TABLE goals ADD COLUMN IF NOT EXISTS target_unit       TEXT;
 ALTER TABLE goals ADD COLUMN IF NOT EXISTS target_weight_kg  FLOAT;
 
+-- password_hash is now nullable: new users authenticate via Supabase Auth,
+-- legacy users keep their bcrypt hash for backwards compatibility.
+ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;
+
 -- ── Email Verification ────────────────────────────────────────────────────────
 ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified              BOOLEAN     DEFAULT FALSE;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verification_token    TEXT;

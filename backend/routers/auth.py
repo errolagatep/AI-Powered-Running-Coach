@@ -1,5 +1,4 @@
 import os
-from datetime import datetime, timezone, timedelta
 from urllib.parse import urlencode
 
 import httpx
@@ -10,14 +9,14 @@ from supabase import Client
 from ..database import get_supabase
 from ..schemas import (
     UserRegister, UserLogin, Token, UserResponse,
-    VerificationSentResponse, VerifyEmailRequest, ResendVerificationRequest,
+    VerificationSentResponse, ResendVerificationRequest,
 )
 from ..auth import hash_password, verify_password, create_access_token, get_current_user
-from ..email_service import generate_verification_token, send_verification_email
 
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
 GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI", "http://localhost:8000/api/auth/google/callback")
+APP_URL = os.getenv("APP_URL", "http://localhost:8000").rstrip("/")
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -38,21 +37,25 @@ def register(data: UserRegister, supabase: Client = Depends(get_supabase)):
     if existing.data:
         raise HTTPException(status_code=400, detail="Email already registered")
 
-    token = generate_verification_token()
-    now = datetime.now(timezone.utc).isoformat()
+    try:
+        auth_resp = supabase.auth.sign_up({
+            "email": data.email,
+            "password": data.password,
+            "options": {"email_redirect_to": f"{APP_URL}/verify-email.html"},
+        })
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Registration failed: {e}")
+
+    if not auth_resp.user:
+        raise HTTPException(status_code=400, detail="Registration failed. Please try again.")
 
     supabase.table("users").insert({
+        "id": str(auth_resp.user.id),
         "email": data.email,
         "name": data.name,
-        "password_hash": hash_password(data.password),
         "weight_kg": data.weight_kg,
         "max_hr": data.max_hr,
-        "email_verified": False,
-        "email_verification_token": token,
-        "email_verification_sent_at": now,
     }).execute()
-
-    send_verification_email(data.email, data.name, token)
 
     return {"message": "Check your inbox to verify your email address.", "email": data.email}
 
@@ -64,76 +67,50 @@ def login(data: UserLogin, supabase: Client = Depends(get_supabase)):
         raise HTTPException(status_code=404, detail="No account found with that email. Please register first.")
 
     user_raw = result.data[0]
-    if not user_raw.get("password_hash"):
-        raise HTTPException(status_code=401, detail="This account uses Google Sign-In. Please sign in with Google.")
-    if not verify_password(data.password, user_raw["password_hash"]):
-        raise HTTPException(status_code=401, detail="Invalid email or password")
 
-    if not user_raw.get("email_verified"):
-        raise HTTPException(status_code=403, detail="email_not_verified")
+    # Google-only accounts have no password
+    if user_raw.get("google_id") and not user_raw.get("password_hash"):
+        raise HTTPException(status_code=401, detail="This account uses Google Sign-In. Please sign in with Google.")
+
+    # Legacy users: password stored in our table (pre-Supabase Auth)
+    if user_raw.get("password_hash"):
+        if not verify_password(data.password, user_raw["password_hash"]):
+            raise HTTPException(status_code=401, detail="Invalid email or password")
+        user = _with_onboarding_flag(user_raw, supabase)
+        token = create_access_token({"sub": user["id"]})
+        return {"access_token": token, "token_type": "bearer", "user": UserResponse.model_validate(user)}
+
+    # New users: authenticate via Supabase Auth (enforces email confirmation)
+    try:
+        auth_resp = supabase.auth.sign_in_with_password({
+            "email": data.email,
+            "password": data.password,
+        })
+        if not auth_resp.user or not auth_resp.user.email_confirmed_at:
+            raise HTTPException(status_code=403, detail="email_not_verified")
+    except HTTPException:
+        raise
+    except Exception as e:
+        if "not confirmed" in str(e).lower():
+            raise HTTPException(status_code=403, detail="email_not_verified")
+        raise HTTPException(status_code=401, detail="Invalid email or password")
 
     user = _with_onboarding_flag(user_raw, supabase)
     token = create_access_token({"sub": user["id"]})
     return {"access_token": token, "token_type": "bearer", "user": UserResponse.model_validate(user)}
 
 
-@router.post("/verify-email", response_model=Token)
-def verify_email(data: VerifyEmailRequest, supabase: Client = Depends(get_supabase)):
-    result = supabase.table("users").select("*").eq("email_verification_token", data.token).execute()
-    if not result.data:
-        raise HTTPException(status_code=400, detail="Invalid or expired verification link.")
-
-    user_raw = result.data[0]
-
-    sent_at_str = user_raw.get("email_verification_sent_at")
-    if sent_at_str:
-        sent_at = datetime.fromisoformat(sent_at_str.replace("Z", "+00:00"))
-        if datetime.now(timezone.utc) - sent_at > timedelta(hours=24):
-            raise HTTPException(status_code=400, detail="Verification link has expired. Request a new one from the sign-in page.")
-
-    supabase.table("users").update({
-        "email_verified": True,
-        "email_verification_token": None,
-    }).eq("id", user_raw["id"]).execute()
-
-    user_raw = {**user_raw, "email_verified": True, "email_verification_token": None}
-    user = _with_onboarding_flag(user_raw, supabase)
-    access_token = create_access_token({"sub": user["id"]})
-    return {"access_token": access_token, "token_type": "bearer", "user": UserResponse.model_validate(user)}
-
-
 @router.post("/resend-verification")
 def resend_verification(data: ResendVerificationRequest, supabase: Client = Depends(get_supabase)):
-    result = supabase.table("users").select("*").eq("email", data.email).execute()
-
-    # Always return the same message to avoid email enumeration
-    generic_ok = {"message": "If that email is registered and unverified, a new link has been sent."}
-
-    if not result.data:
-        return generic_ok
-
-    user_raw = result.data[0]
-
-    if user_raw.get("email_verified"):
-        return {"message": "Your email is already verified. You can sign in."}
-
-    # Rate-limit: one email per minute
-    sent_at_str = user_raw.get("email_verification_sent_at")
-    if sent_at_str:
-        sent_at = datetime.fromisoformat(sent_at_str.replace("Z", "+00:00"))
-        if datetime.now(timezone.utc) - sent_at < timedelta(minutes=1):
-            raise HTTPException(status_code=429, detail="Please wait a moment before requesting another email.")
-
-    new_token = generate_verification_token()
-    now = datetime.now(timezone.utc).isoformat()
-    supabase.table("users").update({
-        "email_verification_token": new_token,
-        "email_verification_sent_at": now,
-    }).eq("id", user_raw["id"]).execute()
-
-    send_verification_email(data.email, user_raw["name"], new_token)
-
-    return generic_ok
+    try:
+        supabase.auth.resend({
+            "type": "signup",
+            "email": data.email,
+            "options": {"email_redirect_to": f"{APP_URL}/verify-email.html"},
+        })
+    except Exception:
+        pass  # Don't reveal whether the email exists
+    return {"message": "If that email is registered and unverified, a new link has been sent."}
 
 
 @router.get("/google")

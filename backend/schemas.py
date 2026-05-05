@@ -72,6 +72,11 @@ class RunCreate(BaseModel):
     heart_rate_avg: Optional[int] = None
     effort_level: int  # 1-10
     notes: Optional[str] = None
+    coach_note: Optional[str] = None
+
+
+class RegenerateRequest(BaseModel):
+    coach_note: Optional[str] = None
 
 
 class RunUpdate(BaseModel):
