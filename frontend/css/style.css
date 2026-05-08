@@ -23,14 +23,18 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 /* ── Icon system — SVG icons scale via font-size on their container ───────── */
-.icon, i[data-lucide] {
+.icon, i[data-lucide], svg.icon, svg[data-lucide] {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
   line-height: 1;
 }
-.icon svg, i[data-lucide] svg { width: 1em; height: 1em; display: block; }
+/* Target both SVGs nested inside .icon wrappers AND SVGs that are themselves icons
+   (Lucide replaces <i class="icon" data-lucide="x"> with <svg class="icon" data-lucide="x">,
+   and Icons.* helpers produce <svg class="icon">). Without explicit sizing, these default
+   to ~300 px wide (browser SVG intrinsic size). */
+.icon svg, i[data-lucide] svg, svg.icon, svg[data-lucide] { width: 1em; height: 1em; display: block; }
 
 body {
   background: var(--bg);
