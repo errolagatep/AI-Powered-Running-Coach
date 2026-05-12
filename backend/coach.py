@@ -33,6 +33,57 @@ def _run_to_context_line(r: dict) -> str:
     return line
 
 
+def _trend_context(recent_runs: list, max_hr: Optional[int] = None) -> str:
+    """Compute pace and HR trend lines from recent runs (most-recent-first)."""
+    if len(recent_runs) < 4:
+        return ""
+
+    lines = []
+
+    # Pace trend: avg of 3 most recent vs avg of next 3
+    paces = [r["pace_per_km"] for r in recent_runs if r.get("pace_per_km")]
+    if len(paces) >= 6:
+        avg_recent = sum(paces[:3]) / 3
+        avg_older  = sum(paces[3:6]) / 3
+        diff = avg_older - avg_recent   # positive = getting faster
+        if abs(diff) >= 0.1:
+            direction = "faster" if diff > 0 else "slower"
+            lines.append(f"- Pace trend: {direction} by {abs(diff):.1f} min/km vs 3 runs ago")
+        else:
+            lines.append("- Pace trend: stable over last 6 runs")
+
+    # HR trend: compare two halves of HR-recorded runs
+    hr_runs = [r for r in recent_runs if r.get("heart_rate_avg")]
+    if len(hr_runs) >= 4:
+        mid = len(hr_runs) // 2
+        avg_recent_hr = sum(r["heart_rate_avg"] for r in hr_runs[:mid]) / mid
+        avg_older_hr  = sum(r["heart_rate_avg"] for r in hr_runs[mid:mid * 2]) / mid
+        hr_diff = avg_recent_hr - avg_older_hr   # positive = HR rising
+        if abs(hr_diff) >= 4:
+            if hr_diff > 0:
+                lines.append(f"- HR trend: cardiac load RISING ({hr_diff:+.0f} bpm avg) — possible fatigue or heat stress")
+            else:
+                lines.append(f"- HR trend: cardiac efficiency IMPROVING ({hr_diff:+.0f} bpm avg) — aerobic adaptation")
+        else:
+            lines.append("- HR trend: stable")
+
+    # Flag easy runs where HR exceeded 80% of max HR
+    if max_hr:
+        flags = []
+        for r in recent_runs[:5]:
+            hr = r.get("heart_rate_avg")
+            effort = r.get("effort_level") or 99
+            if hr and effort <= 6:
+                pct = hr / max_hr * 100
+                if pct > 80:
+                    flags.append(f"  {str(r.get('date',''))[:10]}: easy-effort run at {pct:.0f}% max HR ({hr} bpm)")
+        if flags:
+            lines.append("- Easy-run HR concern (>80% max HR on low-effort runs):")
+            lines.extend(flags)
+
+    return "\n## Pace & HR Trends\n" + "\n".join(lines) if lines else ""
+
+
 def get_onboarding_followup(assessment: dict) -> Optional[str]:
     """Ask Claude if the runner assessment needs one clarifying question."""
     prompt = f"""A new runner just completed their onboarding assessment:
@@ -336,17 +387,27 @@ def generate_run_feedback(
         history += "\n".join(_run_to_context_line(r) for r in recent_runs[:5])
         parts.append(history)
 
+    max_hr = (user_profile or {}).get("max_hr")
+    trend = _trend_context(recent_runs, max_hr)
+    if trend:
+        parts.append(trend)
+
     if goal:
+        race_date_str = str(goal["race_date"])[:10]
         try:
-            race_date = datetime.fromisoformat(str(goal["race_date"]).replace("Z", "").split(".")[0])
-            weeks_until = max(0, (race_date - datetime.utcnow()).days // 7)
+            race_date = datetime.fromisoformat(race_date_str)
+            days_until = max(0, (race_date - datetime.utcnow()).days)
+            weeks_until = days_until // 7
+            timing = f"{weeks_until} weeks ({days_until} days)"
         except Exception:
-            weeks_until = "unknown"
-        goal_txt = f"\n## Current Goal\n- Race: {goal['race_type']}\n- Weeks until race: {weeks_until}"
+            timing = "unknown"
+        goal_txt = f"\n## Current Goal\n- Race: {goal['race_type']}\n- Race date: {race_date_str}\n- Time until race: {timing}"
         if goal.get("target_time_min"):
             hrs = int(goal["target_time_min"] // 60)
             mins = int(goal["target_time_min"] % 60)
             goal_txt += f"\n- Target time: {hrs}h {mins}m" if hrs else f"\n- Target time: {mins} min"
+        if goal.get("goal_description"):
+            goal_txt += f"\n- Goal notes: {goal['goal_description']}"
         parts.append(goal_txt)
 
     if user_profile:
@@ -417,13 +478,15 @@ def generate_run_feedback(
         f"{context}\n\n"
         f"This athlete completed a {workout_type}. Write coaching feedback in 3 short paragraphs — no headings, no bullet points:\n\n"
         f"{p1_instruction}\n\n"
-        f"{p2_instruction}\n\n"
+        f"{p2_instruction} If the Pace & HR Trends section is present, reference it specifically — "
+        "call out whether pace is trending in the right direction and whether HR is appropriate for the effort and proximity to the goal race date.\n\n"
         "Paragraph 3 — Recovery: Give concrete recovery advice for the next 24 hours "
         "based on the effort level and workout type "
         "(e.g. for tempo/intervals: protein within 30 min, legs-up rest, easy 20-min walk tomorrow; "
         "for easy runs: light stretching, hydration).\n\n"
+        "IMPORTANT: Use the exact race date from the Current Goal section — do not reference any other goal or date. "
         "Do NOT suggest the next workout or training session — that is handled separately. "
-        "Be direct, specific, and acknowledge the workout type explicitly. Target 110–140 words total."
+        "Be direct, specific, and acknowledge the workout type explicitly. Target 120–160 words total."
     )
 
     response = get_client().messages.create(

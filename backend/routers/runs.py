@@ -41,18 +41,26 @@ def level_from_xp(total_xp: int) -> int:
 
 
 def _latest_goal(user_id: str, supabase: Client):
+    today = date.today().isoformat()
     result = (
         supabase.table("goals")
-        .select("race_type,race_date,target_time_min")
+        .select("race_type,race_date,target_time_min,goal_type,goal_description")
         .eq("user_id", user_id)
-        .order("created_at", desc=True)
+        .gte("race_date", today)
+        .order("race_date", desc=False)
         .limit(1)
         .execute()
     )
     if not result.data:
         return None
     g = result.data[0]
-    return {"race_type": g["race_type"], "race_date": g["race_date"], "target_time_min": g["target_time_min"]}
+    return {
+        "race_type": g["race_type"],
+        "race_date": g["race_date"],
+        "target_time_min": g["target_time_min"],
+        "goal_type": g.get("goal_type"),
+        "goal_description": g.get("goal_description"),
+    }
 
 
 def _get_assessment(user_id: str, supabase: Client):
