@@ -601,6 +601,12 @@ def regenerate_feedback(
         raise HTTPException(status_code=404, detail="Run not found")
     run = run_result.data[0]
 
+    if body.coach_note and body.coach_note.strip():
+        existing_notes = run.get("notes") or ""
+        combined_notes = (existing_notes + "\n" + body.coach_note.strip()).strip() if existing_notes else body.coach_note.strip()
+        supabase.table("run_logs").update({"notes": combined_notes}).eq("id", run_id).execute()
+        run = {**run, "notes": combined_notes}
+
     recent = (
         supabase.table("run_logs")
         .select("date,distance_km,duration_min,pace_per_km,heart_rate_avg,effort_level,notes")
