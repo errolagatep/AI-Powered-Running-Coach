@@ -23,6 +23,9 @@ def _fmt_pace(pace_per_km: float) -> str:
     """Format decimal minutes as mm:ss per km."""
     minutes = int(pace_per_km)
     seconds = int(round((pace_per_km - minutes) * 60))
+    if seconds == 60:          # rounding overflow: e.g. 5:59.5 → 6:00 not 5:60
+        minutes += 1
+        seconds = 0
     return f"{minutes}:{seconds:02d}"
 
 
@@ -169,17 +172,26 @@ def _trend_context(recent_runs: list, max_hr: Optional[int] = None) -> str:
 
 
 def _extract_json_block(text: str) -> str:
-    """Strip markdown fences and extract the first complete JSON object or array."""
+    """Strip markdown fences and extract the outermost JSON object or array."""
     text = text.strip()
     if text.startswith("```"):
         lines = text.split("\n")
         text = "\n".join(lines[1:]).rstrip("`").strip()
-    # Try to locate the outermost JSON container
-    for open_ch, close_ch in (("[", "]"), ("{", "}")):
-        start = text.find(open_ch)
-        end = text.rfind(close_ch)
-        if start != -1 and end > start:
-            return text[start : end + 1]
+
+    obj_start, obj_end = text.find("{"), text.rfind("}")
+    arr_start, arr_end = text.find("["), text.rfind("]")
+    has_obj = obj_start != -1 and obj_end > obj_start
+    has_arr = arr_start != -1 and arr_end > arr_start
+
+    if has_obj and has_arr:
+        # Whichever opens first is the outermost container
+        if obj_start < arr_start:
+            return text[obj_start : obj_end + 1]
+        return text[arr_start : arr_end + 1]
+    if has_obj:
+        return text[obj_start : obj_end + 1]
+    if has_arr:
+        return text[arr_start : arr_end + 1]
     return text
 
 
@@ -294,16 +306,10 @@ Reply with JSON only (no explanation outside the JSON):
     )
     for block in response.content:
         if block.type == "text":
-            text = block.text.strip()
-            if text.startswith("```"):
-                text = text.split("```")[1]
-                if text.startswith("json"):
-                    text = text[4:]
-                text = text.strip()
             try:
-                data = json.loads(text)
+                data = json.loads(_extract_json_block(block.text))
                 return {"adjust": bool(data.get("adjust")), "reason": str(data.get("reason", ""))}
-            except (json.JSONDecodeError, KeyError):
+            except (json.JSONDecodeError, KeyError, ValueError):
                 break
     return {"adjust": False, "reason": ""}
 
