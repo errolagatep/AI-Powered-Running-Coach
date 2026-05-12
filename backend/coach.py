@@ -33,6 +33,89 @@ def _run_to_context_line(r: dict) -> str:
     return line
 
 
+# HR ceiling as % of max HR by workout type
+_HR_ZONE_CEILINGS = {
+    "Easy Run":          0.75,
+    "Recovery Run":      0.72,
+    "Long Run":          0.78,
+    "Aerobic Run":       0.82,
+    "Tempo Run":         0.90,
+    "Interval Training": 0.95,
+    "Hill Repeats":      0.95,
+}
+_DEFAULT_HR_CEILING = 0.82   # moderate / unclassified
+
+
+def _hr_zone_compliance(
+    run: dict,
+    workout_type: str,
+    planned_workout: Optional[dict],
+    max_hr: Optional[int],
+) -> Optional[dict]:
+    """Return HR zone compliance data, or None if max_hr / HR data unavailable."""
+    if not max_hr or not run.get("heart_rate_avg"):
+        return None
+
+    actual_hr = run["heart_rate_avg"]
+
+    # Try to refine ceiling from planned intensity label
+    intensity = ((planned_workout or {}).get("intensity") or "").lower()
+    if "easy" in intensity or "recovery" in intensity:
+        ceiling_pct = 0.75
+    elif "long" in intensity:
+        ceiling_pct = 0.78
+    elif "tempo" in intensity or "threshold" in intensity:
+        ceiling_pct = 0.90
+    elif "interval" in intensity or "hard" in intensity or "hill" in intensity:
+        ceiling_pct = 0.95
+    else:
+        ceiling_pct = _HR_ZONE_CEILINGS.get(workout_type, _DEFAULT_HR_CEILING)
+
+    hr_ceiling = int(max_hr * ceiling_pct)
+    over_by = actual_hr - hr_ceiling   # negative = under ceiling
+
+    if over_by <= 0:
+        compliance = "compliant"
+    elif over_by <= 5:
+        compliance = "near-zone"      # small tolerance
+    elif over_by <= 12:
+        compliance = "slightly-over"
+    else:
+        compliance = "over-zone"
+
+    return {
+        "ceiling_pct": int(ceiling_pct * 100),
+        "hr_ceiling":  hr_ceiling,
+        "actual_hr":   actual_hr,
+        "hr_pct":      round(actual_hr / max_hr * 100, 1),
+        "over_by":     over_by,
+        "compliance":  compliance,
+    }
+
+
+def _hr_zone_context(zone: dict, workout_type: str) -> str:
+    if not zone:
+        return ""
+    c = zone["compliance"]
+    lines = [f"\n## HR Zone Assessment"]
+    lines.append(f"- Workout target: {workout_type}")
+    lines.append(f"- HR ceiling: {zone['hr_ceiling']} bpm ({zone['ceiling_pct']}% max HR)")
+    lines.append(f"- Actual HR: {zone['actual_hr']} bpm ({zone['hr_pct']}% max HR)")
+
+    if c == "compliant":
+        lines.append("- Zone compliance: COMPLIANT (athlete held HR in correct zone)")
+        lines.append("- Pace interpretation: any pace deficit reflects current aerobic capacity — NOT a failure")
+    elif c == "near-zone":
+        lines.append(f"- Zone compliance: NEAR-ZONE ({zone['over_by']} bpm over ceiling — within tolerance)")
+        lines.append("- Pace interpretation: HR discipline was good; slow pace is aerobic capacity, not execution failure")
+    elif c == "slightly-over":
+        lines.append(f"- Zone compliance: SLIGHTLY OVER ({zone['over_by']} bpm above ceiling)")
+    else:
+        lines.append(f"- Zone compliance: OVER ZONE ({zone['over_by']} bpm above ceiling — significant drift)")
+
+    return "\n".join(lines)
+
+
 def _trend_context(recent_runs: list, max_hr: Optional[int] = None) -> str:
     """Compute pace and HR trend lines from recent runs (most-recent-first)."""
     if len(recent_runs) < 4:
@@ -388,6 +471,12 @@ def generate_run_feedback(
         parts.append(history)
 
     max_hr = (user_profile or {}).get("max_hr")
+
+    zone = _hr_zone_compliance(run, workout_type, planned_workout, max_hr)
+    zone_ctx = _hr_zone_context(zone, workout_type)
+    if zone_ctx:
+        parts.append(zone_ctx)
+
     trend = _trend_context(recent_runs, max_hr)
     if trend:
         parts.append(trend)
@@ -474,8 +563,20 @@ def generate_run_feedback(
             "(e.g. solid negative split, HR too high for easy pace, strong finish)."
         )
 
+    hr_rule = ""
+    if zone and zone["compliance"] in ("compliant", "near-zone"):
+        hr_rule = (
+            "\nHR EVALUATION RULE (mandatory): The HR Zone Assessment shows this athlete held their HR "
+            "in the correct zone. HR compliance is the PRIMARY success metric for this workout type. "
+            "If pace was below the planned target, DO NOT frame that as a failure or criticism — "
+            "instead acknowledge their HR discipline and explain that pace at this HR will naturally "
+            "improve as aerobic fitness develops. Never penalise an athlete for running slowly when "
+            "they controlled their heart rate correctly.\n"
+        )
+
     prompt = (
         f"{context}\n\n"
+        f"{hr_rule}"
         f"This athlete completed a {workout_type}. Write coaching feedback in 3 short paragraphs — no headings, no bullet points:\n\n"
         f"{p1_instruction}\n\n"
         f"{p2_instruction} If the Pace & HR Trends section is present, reference it specifically — "
