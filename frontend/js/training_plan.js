@@ -1133,7 +1133,9 @@ async function loadWeekByNumber(weekNum) {
     );
 
     viewingWeekNumber = weekNum;
-    _isPastWeekView = true;
+    // Past weeks are read-only; future ungenerated weeks allow generating
+    const liveWeekNum = currentPlanData?.week_number ?? 1;
+    _isPastWeekView = weekNum < liveWeekNum;
 
     // Populate weekRunsMap and weekRunsById from the returned runs
     weekRunsMap = {};
@@ -1159,13 +1161,26 @@ async function loadWeekByNumber(weekNum) {
       renderPlan(pseudoPlanData);
       renderProgramBanner(currentProgram, pseudoPlanData);
     } else {
-      // Week exists in program but plan not generated yet
+      // Future week — not generated yet; show skeleton preview + generate CTA
+      const skeleton = currentProgram.skeleton?.find(w => w.week_number === weekNum);
+      const phase      = skeleton?.phase      ?? "";
+      const focus      = skeleton?.focus      ?? "";
+      const keyWorkout = skeleton?.key_workout ?? "";
+      const targetKm   = skeleton?.target_km  ?? "?";
+
       document.getElementById("plan-container").classList.add("hidden");
       document.getElementById("plan-summary").innerHTML = "";
-      document.getElementById("plan-grid").innerHTML =
-        `<div style="grid-column:1/-1;text-align:center;padding:32px;color:var(--text-sec);">
-           Week ${weekNum} plan hasn't been generated yet.
-         </div>`;
+      document.getElementById("plan-grid").innerHTML = `
+        <div style="grid-column:1/-1;text-align:center;padding:40px 20px;">
+          <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:8px;">Week ${weekNum} — Not yet generated</div>
+          ${phase      ? `<div style="font-size:13px;color:var(--accent);font-weight:600;margin-bottom:4px;">Phase: ${phase}</div>` : ""}
+          ${focus      ? `<div style="font-size:13px;color:var(--text-sec);margin-bottom:4px);">${focus}</div>` : ""}
+          ${keyWorkout ? `<div style="font-size:12px;color:var(--text-sec);margin-bottom:4px;">Key workout: ${keyWorkout}</div>` : ""}
+          ${targetKm !== "?" ? `<div style="font-size:12px;color:var(--text-sec);margin-bottom:20px;">Target: ${targetKm} km</div>` : `<div style="margin-bottom:20px;"></div>`}
+          <button class="btn btn-primary" onclick="generateWeekFromNav(${weekNum})">
+            Generate Week ${weekNum}
+          </button>
+        </div>`;
       document.getElementById("plan-container").classList.remove("hidden");
       renderProgramBanner(currentProgram, { week_number: weekNum, total_weeks: data.total_weeks });
     }
@@ -1175,6 +1190,46 @@ async function loadWeekByNumber(weekNum) {
     const alertEl = document.getElementById("alert");
     alertEl.textContent = err.message || "Failed to load week.";
     alertEl.classList.remove("hidden");
+  } finally {
+    document.getElementById("plan-loading").classList.add("hidden");
+  }
+}
+
+async function generateWeekFromNav(weekNum) {
+  if (!currentProgram) return;
+  document.getElementById("plan-loading").classList.remove("hidden");
+  document.getElementById("plan-container").classList.add("hidden");
+  document.getElementById("alert").classList.add("hidden");
+
+  try {
+    const data = await api.post("/plans/next-week", {
+      program_id: currentProgram.id,
+      week_number: weekNum,
+    });
+
+    // If this is the immediate next week, promote it to the live current plan
+    const liveWeekNum = currentPlanData?.week_number ?? 0;
+    if (weekNum === liveWeekNum + 1) {
+      currentPlanId   = data.id;
+      currentPlanData = data;
+      viewingWeekNumber = null;
+      _isPastWeekView   = false;
+    } else {
+      // Stay in the "viewing" context — just show the freshly generated week
+      viewingWeekNumber = weekNum;
+      _isPastWeekView   = false;
+    }
+
+    await loadWeekRuns(data.week_start);
+    renderPlan(data);
+    renderProgramBanner(currentProgram, data);
+    updateWeekNavigator();
+    updateHeaderButtons();
+  } catch (err) {
+    const alertEl = document.getElementById("alert");
+    alertEl.textContent = err.message || "Failed to generate week.";
+    alertEl.classList.remove("hidden");
+    document.getElementById("plan-container").classList.remove("hidden");
   } finally {
     document.getElementById("plan-loading").classList.add("hidden");
   }
