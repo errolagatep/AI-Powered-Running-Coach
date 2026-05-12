@@ -1,7 +1,8 @@
 import anthropic
 import json
+import math
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, date as _date
 
 COACH_SYSTEM_PROMPT = """You are an expert running coach with 20+ years of experience coaching athletes \
 from beginners to competitive runners. You use evidence-based periodization principles (80/20 training, \
@@ -165,6 +166,21 @@ def _trend_context(recent_runs: list, max_hr: Optional[int] = None) -> str:
             lines.extend(flags)
 
     return "\n## Pace & HR Trends\n" + "\n".join(lines) if lines else ""
+
+
+def _extract_json_block(text: str) -> str:
+    """Strip markdown fences and extract the first complete JSON object or array."""
+    text = text.strip()
+    if text.startswith("```"):
+        lines = text.split("\n")
+        text = "\n".join(lines[1:]).rstrip("`").strip()
+    # Try to locate the outermost JSON container
+    for open_ch, close_ch in (("[", "]"), ("{", "}")):
+        start = text.find(open_ch)
+        end = text.rfind(close_ch)
+        if start != -1 and end > start:
+            return text[start : end + 1]
+    return text
 
 
 def get_onboarding_followup(assessment: dict) -> Optional[str]:
@@ -333,19 +349,21 @@ Return ONLY the modified days array as valid JSON — no explanation, no markdow
     )
     for block in response.content:
         if block.type == "text":
-            text = block.text.strip()
-            if text.startswith("```"):
-                lines = text.split("\n")
-                text = "\n".join(lines[1:]).rstrip("`").strip()
-            try:
-                modified_upcoming = json.loads(text)
-                past_and_today = [d for d in plan_json.get("days", []) if d.get("day") not in _DAYS_ORDER or _DAYS_ORDER.index(d["day"]) <= today_idx]
-                plan_json = dict(plan_json)
-                plan_json["days"] = past_and_today + modified_upcoming
-                return plan_json
-            except (json.JSONDecodeError, KeyError, ValueError):
-                break
-    return plan_json
+            modified_upcoming = json.loads(_extract_json_block(block.text))
+            if not isinstance(modified_upcoming, list):
+                raise ValueError("Claude returned non-list JSON for plan adjustment")
+            # Validate day names before reconstructing to catch Claude typos
+            invalid = [d.get("day") for d in modified_upcoming if d.get("day") not in _DAYS_ORDER]
+            if invalid:
+                raise ValueError(f"Claude returned invalid day names: {invalid}")
+            past_and_today = [
+                d for d in plan_json.get("days", [])
+                if d.get("day") in _DAYS_ORDER and _DAYS_ORDER.index(d["day"]) <= today_idx
+            ]
+            plan_json = dict(plan_json)
+            plan_json["days"] = past_and_today + modified_upcoming
+            return plan_json
+    raise ValueError("No text block returned by Claude for plan adjustment")
 
 
 def _infer_workout_type(run: dict, recent_runs: list) -> str:
@@ -354,13 +372,15 @@ def _infer_workout_type(run: dict, recent_runs: list) -> str:
     pace = run.get("pace_per_km", 6.0)
     notes = (run.get("notes") or "").lower()
 
-    # Check notes for explicit keywords
+    # Check notes for explicit keywords — long/lsd must precede easy/recovery
     if any(kw in notes for kw in ["tempo", "threshold"]):
         return "Tempo Run"
     if any(kw in notes for kw in ["interval", "repeat", "rep ", "x ", "400", "800", "1000m", "1km rep"]):
         return "Interval Training"
-    if any(kw in notes for kw in ["long run", "lsd", "easy", "recovery"]):
-        return "Easy Run" if effort <= 5 else "Long Run"
+    if any(kw in notes for kw in ["long run", "lsd"]):
+        return "Long Run"
+    if any(kw in notes for kw in ["easy", "recovery"]):
+        return "Easy Run"
 
     # Infer from effort and pace relative to recent average
     if recent_runs:
@@ -484,9 +504,9 @@ def generate_run_feedback(
     if goal:
         race_date_str = str(goal["race_date"])[:10]
         try:
-            race_date = datetime.fromisoformat(race_date_str)
-            days_until = max(0, (race_date - datetime.utcnow()).days)
-            weeks_until = days_until // 7
+            race_date_obj = _date.fromisoformat(race_date_str)
+            days_until = max(0, (race_date_obj - _date.today()).days)
+            weeks_until = math.ceil(days_until / 7) if days_until > 0 else 0
             timing = f"{weeks_until} weeks ({days_until} days)"
         except Exception:
             timing = "unknown"
@@ -976,8 +996,8 @@ def generate_weekly_plan(
 
     if goal:
         try:
-            race_date = datetime.fromisoformat(str(goal["race_date"]).replace("Z", "").split(".")[0])
-            weeks_until = max(0, (race_date - datetime.utcnow()).days // 7)
+            race_date_obj = _date.fromisoformat(str(goal["race_date"])[:10])
+            weeks_until = max(0, math.ceil((race_date_obj - _date.today()).days / 7))
         except Exception:
             weeks_until = "unknown"
         context += f"\nGoal race: {goal['race_type']} in {weeks_until} weeks"
@@ -987,13 +1007,13 @@ def generate_weekly_plan(
     if week_context:
         context += (
             f"\n\n## Program Context\n"
-            f"This is Week {week_context['week_number']} of {week_context.get('total_weeks', '?')} "
+            f"This is Week {week_context.get('week_number', '?')} of {week_context.get('total_weeks', '?')} "
             f"in a full training program.\n"
-            f"Phase: {week_context['phase']}\n"
-            f"Weekly focus: {week_context['focus']}\n"
-            f"Target total km this week: {week_context['target_km']} km\n"
-            f"Target long run: {week_context['target_long_run_km']} km\n"
-            f"Key workout: {week_context['key_workout']}\n"
+            f"Phase: {week_context.get('phase', '')}\n"
+            f"Weekly focus: {week_context.get('focus', '')}\n"
+            f"Target total km this week: {week_context.get('target_km', '?')} km\n"
+            f"Target long run: {week_context.get('target_long_run_km', '?')} km\n"
+            f"Key workout: {week_context.get('key_workout', '')}\n"
         )
         if week_context.get("notes"):
             context += f"Coaching notes: {week_context['notes']}\n"

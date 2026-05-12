@@ -11,6 +11,30 @@ from ..schemas import PlanRescheduleRequest, ProgramCreate, ProgramResponse, Nex
 router = APIRouter(prefix="/api/plans", tags=["plans"])
 
 
+def _latest_goal_for_user(user_id: str, supabase: Client) -> dict | None:
+    """Return the nearest upcoming goal (race_date >= today), or None."""
+    today = date_type.today().isoformat()
+    result = (
+        supabase.table("goals")
+        .select("race_type,race_date,target_time_min,goal_type,goal_description")
+        .eq("user_id", user_id)
+        .gte("race_date", today)
+        .order("race_date", desc=False)
+        .limit(1)
+        .execute()
+    )
+    if not result.data:
+        return None
+    g = result.data[0]
+    return {
+        "race_type":        g["race_type"],
+        "race_date":        g["race_date"],
+        "target_time_min":  g["target_time_min"],
+        "goal_type":        g.get("goal_type"),
+        "goal_description": g.get("goal_description"),
+    }
+
+
 @router.get("/current")
 def get_current_plan(
     current_user: dict = Depends(get_current_user),
@@ -180,18 +204,7 @@ def create_plan(
         .execute()
     )
 
-    goal_result = (
-        supabase.table("goals")
-        .select("race_type,race_date,target_time_min")
-        .eq("user_id", current_user["id"])
-        .order("created_at", desc=True)
-        .limit(1)
-        .execute()
-    )
-    goal = None
-    if goal_result.data:
-        g = goal_result.data[0]
-        goal = {"race_type": g["race_type"], "race_date": g["race_date"], "target_time_min": g["target_time_min"]}
+    goal = _latest_goal_for_user(current_user["id"], supabase)
 
     assessment_result = (
         supabase.table("runner_assessments")
@@ -268,18 +281,7 @@ def vary_workout(
         .execute()
     )
 
-    goal_result = (
-        supabase.table("goals")
-        .select("race_type,race_date,target_time_min")
-        .eq("user_id", current_user["id"])
-        .order("created_at", desc=True)
-        .limit(1)
-        .execute()
-    )
-    goal = None
-    if goal_result.data:
-        g = goal_result.data[0]
-        goal = {"race_type": g["race_type"], "race_date": g["race_date"], "target_time_min": g["target_time_min"]}
+    goal = _latest_goal_for_user(current_user["id"], supabase)
 
     assessment_result = (
         supabase.table("runner_assessments")
@@ -372,17 +374,8 @@ def create_program(
             raise HTTPException(status_code=404, detail="Goal not found")
         goal = goal_result.data[0]
     else:
-        # No goal_id: look up latest goal for this user
-        goal_result = (
-            supabase.table("goals")
-            .select("*")
-            .eq("user_id", current_user["id"])
-            .order("created_at", desc=True)
-            .limit(1)
-            .execute()
-        )
-        if goal_result.data:
-            goal = goal_result.data[0]
+        # No goal_id: look up the nearest upcoming goal for this user
+        goal = _latest_goal_for_user(current_user["id"], supabase)
 
     # ── Compute end_date ──────────────────────────────────────────────────────
     if goal and goal.get("race_date"):
@@ -595,18 +588,7 @@ def generate_next_week(
         .limit(28)
         .execute()
     )
-    goal_result = (
-        supabase.table("goals")
-        .select("race_type,race_date,target_time_min")
-        .eq("user_id", current_user["id"])
-        .order("created_at", desc=True)
-        .limit(1)
-        .execute()
-    )
-    goal = None
-    if goal_result.data:
-        g = goal_result.data[0]
-        goal = {"race_type": g["race_type"], "race_date": g["race_date"], "target_time_min": g["target_time_min"]}
+    goal = _latest_goal_for_user(current_user["id"], supabase)
 
     assessment_result = (
         supabase.table("runner_assessments")
@@ -782,18 +764,7 @@ def recalibrate_plan(
             )
         coach_notes = "\n".join(lines)
 
-    goal_result = (
-        supabase.table("goals")
-        .select("race_type,race_date,target_time_min")
-        .eq("user_id", current_user["id"])
-        .order("created_at", desc=True)
-        .limit(1)
-        .execute()
-    )
-    goal = None
-    if goal_result.data:
-        g = goal_result.data[0]
-        goal = {"race_type": g["race_type"], "race_date": g["race_date"], "target_time_min": g["target_time_min"]}
+    goal = _latest_goal_for_user(current_user["id"], supabase)
 
     assessment_result = (
         supabase.table("runner_assessments")

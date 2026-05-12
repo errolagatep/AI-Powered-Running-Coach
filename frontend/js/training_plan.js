@@ -1038,7 +1038,7 @@ function updateWeekNavigator() {
   document.getElementById("week-nav-dates").textContent = rangeStr;
 
   document.getElementById("week-nav-prev").disabled = viewing <= 1;
-  document.getElementById("week-nav-next").disabled = viewing >= (liveWeekNum ?? totalWeeks);
+  document.getElementById("week-nav-next").disabled = !totalWeeks || viewing >= totalWeeks;
 
   const todayBtn = document.getElementById("week-nav-today");
   if (_isPastWeekView) {
@@ -1057,7 +1057,7 @@ async function navigateWeek(dir) {
   if (currentViewing === null) return;
 
   const newWeek = currentViewing + dir;
-  if (newWeek < 1 || newWeek > (liveWeekNum ?? currentProgram.total_weeks)) return;
+  if (newWeek < 1 || newWeek > currentProgram.total_weeks) return;
 
   if (newWeek === liveWeekNum) {
     // Going back to current week — restore from loaded plan data
