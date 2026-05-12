@@ -1010,24 +1010,6 @@ def generate_weekly_plan(
         if goal.get("target_time_min"):
             context += f" (target: {goal['target_time_min']:.0f} min)"
 
-    if week_context:
-        context += (
-            f"\n\n## Program Context\n"
-            f"This is Week {week_context.get('week_number', '?')} of {week_context.get('total_weeks', '?')} "
-            f"in a full training program.\n"
-            f"Phase: {week_context.get('phase', '')}\n"
-            f"Weekly focus: {week_context.get('focus', '')}\n"
-            f"Target total km this week: {week_context.get('target_km', '?')} km\n"
-            f"Target long run: {week_context.get('target_long_run_km', '?')} km\n"
-            f"Key workout: {week_context.get('key_workout', '')}\n"
-        )
-        if week_context.get("notes"):
-            context += f"Coaching notes: {week_context['notes']}\n"
-        context += (
-            "IMPORTANT: The 7-day plan MUST align with the phase and target_km above. "
-            "Do not deviate significantly from the target km.\n"
-        )
-
     if coach_notes:
         context += f"\n\n## Coach Notes (incorporate these into the plan)\n{coach_notes}\n"
 
@@ -1068,6 +1050,27 @@ def generate_weekly_plan(
 
     schema_hint = json.dumps(plan_schema, indent=2)
 
+    # If a program skeleton entry exists, prepend it as a hard constraint BEFORE the athlete context
+    skeleton_prefix = ""
+    if week_context:
+        key_workout = week_context.get("key_workout", "")
+        skeleton_prefix = (
+            f"## MANDATORY PROGRAM CONSTRAINT — read this first\n"
+            f"This is Week {week_context.get('week_number', '?')} of {week_context.get('total_weeks', '?')} "
+            f"in a structured {week_context.get('total_weeks', '?')}-week training program.\n"
+            f"- Phase: {week_context.get('phase', '')}\n"
+            f"- Weekly focus: {week_context.get('focus', '')}\n"
+            f"- Target total km: {week_context.get('target_km', '?')} km (stay within ±5% of this)\n"
+            f"- Target long run: {week_context.get('target_long_run_km', '?')} km\n"
+            f"- KEY WORKOUT (MANDATORY): {key_workout}\n"
+        )
+        if week_context.get("notes"):
+            skeleton_prefix += f"- Coaching note: {week_context['notes']}\n"
+        skeleton_prefix += (
+            f"\nThe key workout '{key_workout}' MUST appear in the 7-day plan — do not omit or replace it.\n"
+            "All workouts must reflect the phase and focus above. Weekly total km must respect the target.\n\n"
+        )
+
     response = get_client().messages.create(
         model="claude-opus-4-6",
         max_tokens=2500,
@@ -1075,7 +1078,8 @@ def generate_weekly_plan(
         messages=[{
             "role": "user",
             "content": (
-                f"{context}\n\n"
+                f"{skeleton_prefix}"
+                f"## Athlete & Training Context\n{context}\n\n"
                 "Create a 7-day training plan (Monday–Sunday). Include all 7 days including rest days.\n"
                 "Workout types: Easy Run, Tempo Run, Interval Training, Long Run, Cross Training, Rest, Active Recovery.\n"
                 "For Rest and Active Recovery days set distance_km and duration_min to 0.\n"

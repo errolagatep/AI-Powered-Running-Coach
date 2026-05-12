@@ -306,11 +306,43 @@ async function loadPlan() {
 
 // Refresh plan day status markers after a run is logged via the quick modal
 window._qlmOnRunLogged = async function (run) {
+  if (run?.plan_adjusted && currentProgram) {
+    // Plan was modified — reload from server so we display the updated workouts
+    try {
+      const freshPlan = await api.get("/plans/current");
+      if (freshPlan?.id) {
+        currentPlanId = freshPlan.id;
+        currentPlanData = freshPlan;
+      }
+    } catch (_) {}
+    _showPlanAdjustedToast(run.plan_adjustment_reason);
+  }
   if (currentPlanData?.week_start) {
     await loadWeekRuns(currentPlanData.week_start);
     renderPlan(currentPlanData);
   }
 };
+
+function _showPlanAdjustedToast(reason) {
+  const existing = document.getElementById("_plan-adj-toast");
+  if (existing) existing.remove();
+  const toast = document.createElement("div");
+  toast.id = "_plan-adj-toast";
+  toast.style.cssText = "position:fixed;top:76px;right:20px;z-index:9999;max-width:340px;animation:fadeIn .3s ease;";
+  toast.innerHTML = `
+    <div style="background:var(--card,#fff);border:1.5px solid var(--accent,#F97316);border-radius:12px;
+      padding:14px 16px;box-shadow:0 4px 20px rgba(0,0,0,.18);display:flex;gap:12px;align-items:flex-start;">
+      <span style="font-size:20px;flex-shrink:0;">🔄</span>
+      <div style="flex:1;">
+        <div style="font-weight:700;font-size:13px;color:var(--text,#111);margin-bottom:3px;">Training plan updated</div>
+        <div style="font-size:12px;color:var(--text-sec,#666);line-height:1.5;">${escapeHtml(reason || "Your coach adjusted remaining workouts based on this run.")}</div>
+        <a href="/training_plan.html" style="font-size:12px;color:var(--accent,#F97316);font-weight:600;display:inline-block;margin-top:6px;">View updated plan →</a>
+      </div>
+      <button onclick="this.closest('#_plan-adj-toast').remove()" style="background:none;border:none;cursor:pointer;font-size:18px;color:var(--text-sec,#666);padding:0;line-height:1;">×</button>
+    </div>`;
+  document.body.appendChild(toast);
+  setTimeout(() => toast?.remove(), 9000);
+}
 
 // Parse "YYYY-MM-DD..." as a local-date number (days since epoch) to avoid UTC shift
 function dateStrToLocalKey(dateStr) {
@@ -733,13 +765,18 @@ function renderProgramBanner(program, planData) {
   const weeksLeft = Math.ceil(daysLeft / 7);
 
   const skeletonWeek = weekNum ? program.skeleton.find(w => w.week_number === weekNum) : null;
-  const phase = skeletonWeek?.phase ?? "";
+  const phase      = skeletonWeek?.phase      ?? "";
+  const focus      = skeletonWeek?.focus      ?? "";
+  const keyWorkout = skeletonWeek?.key_workout ?? "";
 
   const pct = weekNum ? Math.round((weekNum / totalWeeks) * 100) : 0;
 
   document.getElementById("program-week-label").textContent =
     weekNum ? `Week ${weekNum} of ${totalWeeks}` : `${totalWeeks}-Week Program`;
   document.getElementById("program-phase-label").textContent = phase ? `Phase: ${phase}` : "";
+  document.getElementById("program-focus-label").textContent  = focus ? `Focus: ${focus}` : "";
+  document.getElementById("program-key-workout-label").textContent =
+    keyWorkout ? `Key workout: ${keyWorkout}` : "";
   document.getElementById("program-countdown").textContent =
     weeksLeft > 1 ? `${weeksLeft} weeks (${daysLeft} days)` : `${daysLeft} day${daysLeft !== 1 ? "s" : ""}`;
   document.getElementById("program-progress-bar").style.width = `${pct}%`;
