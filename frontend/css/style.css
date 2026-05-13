@@ -2760,6 +2760,8 @@ span.flatpickr-weekday {
 }
 .plan-overflow-item:hover { background: var(--accent-glow); color: var(--accent); }
 .plan-overflow-item + .plan-overflow-item { border-top: 1px solid var(--border); }
+.plan-overflow-item-danger { color: #e53e3e !important; border-top: 1px solid var(--border); }
+.plan-overflow-item-danger:hover { background: rgba(229,62,62,.08) !important; color: #c53030 !important; }
 
 /* ═══════════════════════════════════════════════════════════════════════════
    VERIFY EMAIL PAGE

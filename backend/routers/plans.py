@@ -772,11 +772,52 @@ def _resolve_week_start(local_monday: str | None) -> date_type:
 
 @router.post("/recalibrate")
 def recalibrate_plan(
+    plan_id: str = Query(None, description="Existing plan ID to update in-place"),
     local_monday: str = Query(None, description="Local Monday date YYYY-MM-DD from client"),
     current_user: dict = Depends(get_current_user),
     supabase: Client = Depends(get_supabase),
 ):
-    """Regenerate the training plan, explicitly using AI feedback from recent runs."""
+    """Regenerate the training plan, preserving completed workouts and using AI feedback."""
+    week_start = _resolve_week_start(local_monday)
+    week_end = week_start + timedelta(days=7)
+
+    # Fetch the existing plan row so we can preserve completed days and UPDATE in-place
+    existing_row = None
+    existing_plan = None
+    completed_days: set = set()
+
+    if plan_id:
+        plan_result = (
+            supabase.table("training_plans")
+            .select("*")
+            .eq("id", plan_id)
+            .eq("user_id", current_user["id"])
+            .execute()
+        )
+        if plan_result.data:
+            existing_row = plan_result.data[0]
+            existing_plan = (
+                json.loads(existing_row["plan_json"])
+                if isinstance(existing_row["plan_json"], str)
+                else existing_row["plan_json"]
+            )
+            # Find which days already have logged runs this week
+            runs_this_week = (
+                supabase.table("run_logs")
+                .select("date")
+                .eq("user_id", current_user["id"])
+                .gte("date", week_start.isoformat())
+                .lt("date", week_end.isoformat())
+                .execute()
+            )
+            DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+            for run in (runs_this_week.data or []):
+                try:
+                    run_date = date_type.fromisoformat(str(run["date"])[:10])
+                    completed_days.add(DAY_NAMES[run_date.weekday()])
+                except Exception:
+                    pass
+
     recent_result = (
         supabase.table("run_logs")
         .select("date,distance_km,duration_min,pace_per_km,heart_rate_avg,effort_level,notes,coach_note,ai_feedback")
@@ -810,16 +851,33 @@ def recalibrate_plan(
         athlete_summary=athlete_summary,
     )
 
-    result = supabase.table("training_plans").insert({
-        "user_id": current_user["id"],
-        "week_start": _resolve_week_start(local_monday).isoformat(),
-        "plan_json": json.dumps(plan_data),
-    }).execute()
+    # Merge completed days from the old plan into the new one so logged runs aren't overwritten
+    if completed_days and existing_plan:
+        old_days = {d["day"]: d for d in existing_plan.get("days", [])}
+        new_days = plan_data.get("days", [])
+        for i, day in enumerate(new_days):
+            if day.get("day") in completed_days and day["day"] in old_days:
+                new_days[i] = old_days[day["day"]]
+        plan_data["days"] = new_days
 
-    plan = result.data[0]
+    if existing_row:
+        updated = supabase.table("training_plans").update({
+            "plan_json": json.dumps(plan_data),
+        }).eq("id", plan_id).execute()
+        plan = updated.data[0]
+    else:
+        inserted = supabase.table("training_plans").insert({
+            "user_id": current_user["id"],
+            "week_start": week_start.isoformat(),
+            "plan_json": json.dumps(plan_data),
+        }).execute()
+        plan = inserted.data[0]
+
     return {
         "id": plan["id"],
         "week_start": plan["week_start"],
         "generated_at": plan["generated_at"],
         "plan": plan_data,
+        "program_id": plan.get("program_id"),
+        "week_number": plan.get("week_number"),
     }

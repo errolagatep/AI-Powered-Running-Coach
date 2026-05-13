@@ -15,40 +15,42 @@ let _isPastWeekView = false;  // True when viewing a past week (disables action 
 //   Standalone plan → "Start a Training Program"   (calls openProgramModal)
 // Overflow menu appears whenever a plan or program exists.
 function updateHeaderButtons() {
-  const primaryBtn  = document.getElementById("plan-primary-btn");
+  const primaryBtn   = document.getElementById("plan-primary-btn");
   const overflowWrap = document.getElementById("plan-overflow-wrap");
-  const overflowProg = document.getElementById("overflow-program");
 
-  if (currentProgram) {
-    // In a program — primary action is generating the next week
-    primaryBtn.innerHTML = `${Icons.calendar} Build Full Program`;
-    primaryBtn.classList.remove("btn-primary");
-    primaryBtn.classList.add("btn-secondary");
+  if (currentProgram && currentPlanData) {
+    // Mid-program with plan loaded — hide primary, all actions live in overflow
+    primaryBtn.classList.add("hidden");
     overflowWrap.classList.remove("hidden");
-    overflowProg.innerHTML = `${Icons.calendar} New Program`;
-    // Disable overflow rebuild if viewing a past week
-    document.getElementById("overflow-recalibrate").disabled = _isPastWeekView;
-  } else if (currentPlanData) {
-    // Standalone plan — nudge toward building a full program
-    primaryBtn.innerHTML = `${Icons.calendar} Start a Training Program`;
-    primaryBtn.classList.remove("btn-secondary");
+  } else if (currentProgram) {
+    // Program active but no plan generated yet for this week
+    const weekNum = viewingWeekNumber || 1;
+    primaryBtn.innerHTML = `${Icons.calendar} Generate Week ${weekNum}`;
+    primaryBtn.classList.remove("hidden", "btn-secondary");
     primaryBtn.classList.add("btn-primary");
     overflowWrap.classList.remove("hidden");
-    overflowProg.innerHTML = `${Icons.calendar} Build Full Program`;
-    document.getElementById("overflow-recalibrate").disabled = false;
+  } else if (currentPlanData) {
+    // Standalone plan, no program — nudge toward building one
+    primaryBtn.innerHTML = `${Icons.calendar} Start a Training Program`;
+    primaryBtn.classList.remove("hidden", "btn-secondary");
+    primaryBtn.classList.add("btn-primary");
+    overflowWrap.classList.remove("hidden");
   } else {
-    // Nothing yet — primary action: generate a quick plan for this week
+    // Nothing yet — generate a quick one-off plan
     primaryBtn.innerHTML = `${Icons.sparkles} Generate This Week's Plan`;
-    primaryBtn.classList.remove("btn-secondary");
+    primaryBtn.classList.remove("hidden", "btn-secondary");
     primaryBtn.classList.add("btn-primary");
     overflowWrap.classList.add("hidden");
   }
+
+  const recalBtn = document.getElementById("overflow-recalibrate");
+  if (recalBtn) recalBtn.disabled = _isPastWeekView;
 }
 
 function handlePrimaryAction() {
-  if (currentProgram) {
-    openProgramModal();
-  } else if (currentPlanData) {
+  if (currentProgram && !currentPlanData) {
+    generateNextWeek();
+  } else if (!currentProgram && currentPlanData) {
     openProgramModal();
   } else {
     generatePlan();
@@ -229,44 +231,19 @@ function parseTimeToMinutes(str, isPace = false) {
   return null;
 }
 
-async function deleteGoal() {
+function showGoalForm() {
+  document.getElementById("goal-display").classList.add("hidden");
+  document.getElementById("goal-form").classList.remove("hidden");
+  const cancelBtn = document.getElementById("goal-cancel-btn");
+  if (cancelBtn) cancelBtn.style.display = "";
+}
+
+function cancelGoalEdit() {
   if (!currentGoalId) return;
-  if (!confirm("Remove your current goal?")) return;
-  try {
-    await api.delete(`/goals/${currentGoalId}`);
-
-    // Clear all goal state
-    currentGoalId = null;
-    currentGoalData = null;
-    document.getElementById("goal-display").classList.add("hidden");
-    document.getElementById("goal-form").classList.remove("hidden");
-    document.getElementById("goal-info").innerHTML = "";
-
-    // Clear all plan and program state
-    currentPlanId = null;
-    currentPlanData = null;
-    currentProgram = null;
-    viewingWeekNumber = null;
-    _isPastWeekView = false;
-    weekRunsMap = {};
-    weekRunsById = {};
-
-    // Hide all plan UI sections
-    document.getElementById("plan-container").classList.add("hidden");
-    document.getElementById("program-banner").classList.add("hidden");
-    document.getElementById("next-week-banner").classList.add("hidden");
-    document.getElementById("week-navigator").classList.add("hidden");
-    document.getElementById("goal-changed-banner").classList.add("hidden");
-    document.getElementById("alert").classList.add("hidden");
-
-    // Reset plan info card
-    document.getElementById("plan-meta").innerHTML =
-      "No plan yet. Build a full program for a structured training block, or generate a quick plan for this week.";
-
-    updateHeaderButtons();
-  } catch (err) {
-    alert(err.message || "Failed to remove goal");
-  }
+  document.getElementById("goal-display").classList.remove("hidden");
+  document.getElementById("goal-form").classList.add("hidden");
+  const cancelBtn = document.getElementById("goal-cancel-btn");
+  if (cancelBtn) cancelBtn.style.display = "none";
 }
 
 async function loadPlan() {
@@ -605,6 +582,20 @@ function renderMarkdown(text) {
 
 // ── Recalibrate modal ─────────────────────────────────────────
 function openRecalibrateModal() {
+  const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  const completedDays = Object.keys(weekRunsMap).map(dateStr => {
+    const d = new Date(dateStr + "T12:00:00");
+    return DAY_NAMES[d.getDay()];
+  });
+  const noteEl = document.getElementById("recalibrate-days-note");
+  if (noteEl) {
+    if (completedDays.length > 0) {
+      noteEl.textContent = `✓ You've already run on ${completedDays.join(", ")} — those days will be kept as-is.`;
+      noteEl.classList.remove("hidden");
+    } else {
+      noteEl.classList.add("hidden");
+    }
+  }
   document.getElementById("recalibrate-modal").classList.remove("hidden");
   document.body.style.overflow = "hidden";
 }
@@ -631,7 +622,8 @@ async function recalibratePlan() {
 
   try {
     const localMonday = getLocalMondayISO();
-    const data = await api.post(`/plans/recalibrate?local_monday=${localMonday}`, {});
+    const planParam = currentPlanId ? `&plan_id=${currentPlanId}` : "";
+    const data = await api.post(`/plans/recalibrate?local_monday=${localMonday}${planParam}`, {});
     currentPlanId = data.id;
     currentPlanData = data;
     viewingWeekNumber = null;
@@ -848,11 +840,14 @@ async function generateNextWeek() {
 
 async function openProgramModal() {
   const body = document.getElementById("program-modal-body");
-  const goalType = currentGoalData?.goal_type || "race";
 
-  if ((goalType === "race" || goalType === "pb_attempt") && (!currentGoalId || !currentGoalData)) {
-    alert("Please set a goal before building a program."); return;
+  // No goal set at all — send them to set one first
+  if (!currentGoalId || !currentGoalData) {
+    alert("Please set a goal first — use the goal form above, then come back to build a program.");
+    return;
   }
+
+  const goalType = currentGoalData?.goal_type || "race";
 
   // Fetch existing assessment for prefilling intensity questions
   let assessment = null;
@@ -958,7 +953,13 @@ async function openProgramModal() {
       </div>`;
   }
 
-  body.innerHTML = intensityHtml + goalHtml;
+  const warningHtml = currentProgram
+    ? `<div style="margin-bottom:16px;padding:12px 14px;background:rgba(229,62,62,.08);border:1px solid rgba(229,62,62,.3);border-radius:8px;font-size:13px;color:#c53030;line-height:1.5;">
+        <strong>⚠ You have an active program.</strong> Starting a new one will abandon it. Only do this if your goal or timeline has significantly changed.
+       </div>`
+    : "";
+
+  body.innerHTML = warningHtml + intensityHtml + goalHtml;
 
   document.getElementById("program-modal").classList.remove("hidden");
   document.body.style.overflow = "hidden";
