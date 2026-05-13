@@ -203,6 +203,8 @@
     if (notes)      body.notes = notes;
     if (coachNote)  body.coach_note = coachNote;
 
+    const submitBtn = document.getElementById("qlm-submit-btn");
+    submitBtn.disabled = true;
     _qlmShowView("loading");
 
     try {
@@ -210,6 +212,7 @@
       _qlmShowFeedback(run);
     } catch (err) {
       _qlmShowView("form");
+      submitBtn.disabled = false;
       _qlmAlert(err.message || "Failed to save run. Please try again.");
     }
   };
@@ -260,8 +263,9 @@
     document.getElementById("qlm-hr").value       = "";
     document.getElementById("qlm-effort").value   = "5";
     document.getElementById("qlm-effort-display").textContent = "5";
-    document.getElementById("qlm-notes").value       = "";
-    document.getElementById("qlm-coach-note").value  = "";
+    document.getElementById("qlm-notes").value           = "";
+    document.getElementById("qlm-coach-note").value      = "";
+    document.getElementById("qlm-submit-btn").disabled   = false;
     document.getElementById("qlm-pace-preview").classList.add("hidden");
     document.getElementById("qlm-alert").classList.add("hidden");
     document.getElementById("qlm-plan-adjusted").classList.add("hidden");

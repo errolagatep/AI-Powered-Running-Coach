@@ -540,7 +540,14 @@ function runCard(run) {
 
   let expandContent;
   if (run.ai_feedback) {
-    expandContent = `<div class="feedback-content">${renderMarkdown(run.ai_feedback)}</div>`;
+    expandContent = `
+      <div class="feedback-content">${renderMarkdown(run.ai_feedback)}</div>
+      <div style="padding:6px 0 4px;">
+        <button class="btn btn-secondary" style="font-size:12px;padding:5px 12px;"
+          onclick="event.stopPropagation();generateFeedback('${run.id}',this)">
+          ${Icons.sparkles} Regenerate feedback
+        </button>
+      </div>`;
   } else if (isWithin7Days(run.date)) {
     expandContent = `<div style="padding:10px 0 4px;">
       <button class="btn btn-secondary" style="font-size:13px;"
@@ -549,7 +556,14 @@ function runCard(run) {
       </button>
     </div>`;
   } else {
-    expandContent = `<p style="font-size:13px;color:var(--text-sec);padding:8px 0 2px;">No coaching feedback for this run.</p>`;
+    expandContent = `
+      <p style="font-size:13px;color:var(--text-sec);padding:8px 0 2px;">No coaching feedback for this run.</p>
+      <div style="padding:4px 0 4px;">
+        <button class="btn btn-secondary" style="font-size:12px;padding:5px 12px;"
+          onclick="event.stopPropagation();generateFeedback('${run.id}',this)">
+          ${Icons.sparkles} Generate feedback
+        </button>
+      </div>`;
   }
 
   const mapPanel = run.route_polyline
