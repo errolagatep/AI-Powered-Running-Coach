@@ -483,7 +483,7 @@ function workoutCard(day, run) {
       ? `<button class="btn-vary" onclick="event.stopPropagation();varyWorkout('${day.day}')">${Icons.shuffle} Vary workout</button>`
       : "";
     const garminBtn = !isRest
-      ? `<button class="btn-garmin" onclick="event.stopPropagation();downloadGarminFit('${day.day}')" title="Download for Garmin">⌚ Garmin</button>`
+      ? `<button class="btn-garmin" onclick="event.stopPropagation();downloadGarminFit('${day.day}')" title="Download structured workout file — transfer via USB to your Garmin watch">⌚ Garmin (.fit)</button>`
       : "";
     if (rescheduleBtn || varyBtn || garminBtn) {
       footerHtml = `<div class="workout-card-footer">${rescheduleBtn}${varyBtn}${garminBtn}</div>`;
@@ -1226,10 +1226,39 @@ async function downloadGarminFit(dayName) {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(a.href);
+    _showGarminInstructions(filename);
   } catch (err) {
     alert("Download failed. Please try again.");
     console.error(err);
   }
+}
+
+function _showGarminInstructions(filename) {
+  const existing = document.getElementById("_garmin-instructions-toast");
+  if (existing) existing.remove();
+
+  const t = document.createElement("div");
+  t.id = "_garmin-instructions-toast";
+  t.style.cssText = [
+    "position:fixed;bottom:24px;right:24px;z-index:9999",
+    "background:var(--card-bg,#fff);border:1.5px solid rgba(27,110,194,0.3)",
+    "border-radius:12px;padding:14px 18px;max-width:340px",
+    "box-shadow:0 4px 24px rgba(0,0,0,.15);font-size:13px;line-height:1.5",
+    "color:var(--text)",
+  ].join(";");
+  t.innerHTML = `
+    <div style="font-weight:700;margin-bottom:6px;">⌚ Workout file downloaded</div>
+    <div style="color:var(--text-sec)">
+      <strong style="color:var(--text)">${filename}</strong> is a Garmin workout file,
+      not an activity file. To load it on your watch:<br><br>
+      1. Connect your Garmin via USB<br>
+      2. Copy the file to <code style="background:rgba(0,0,0,.06);padding:1px 4px;border-radius:3px">GARMIN/NEWFILES</code><br>
+      3. Safely eject — the watch imports it automatically
+    </div>
+    <button onclick="this.parentElement.remove()" style="margin-top:10px;font-size:12px;
+      color:var(--text-sec);background:none;border:none;cursor:pointer;padding:0;">Dismiss</button>`;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 18000);
 }
 
 async function generateWeekFromNav(weekNum) {
