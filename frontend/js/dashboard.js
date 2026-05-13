@@ -521,8 +521,9 @@ window.generateFeedback = async function generateFeedback(runId, coachNote = "")
 };
 
 function formatTargetTime(minutes) {
-  const h = Math.floor(minutes / 60);
-  const m = Math.round(minutes % 60);
+  let h = Math.floor(minutes / 60);
+  let m = Math.round(minutes % 60);
+  if (m === 60) { h += 1; m = 0; }
   return h > 0 ? `${h}h ${m}m` : `${m} min`;
 }
 
