@@ -136,7 +136,7 @@ function runCard(run) {
   } else if (isWithin7Days(run.date)) {
     expandContent = `<div id="feedback-trigger-${run.id}" style="padding:10px 0 4px;">
       <button class="btn btn-secondary" style="font-size:13px;"
-        onclick="event.stopPropagation();showCoachNoteInput('${run.id}')">
+        onclick="event.stopPropagation();openFeedbackModal('${run.id}')">
         ${Icons.sparkles} Get Takbo Coach Feedback
       </button>
     </div>`;
@@ -195,32 +195,32 @@ function isWithin7Days(dateStr) {
   return runDay >= cutoffDay;
 }
 
-function showCoachNoteInput(runId) {
-  const container = document.getElementById(`feedback-trigger-${runId}`);
-  if (!container) return;
-  container.innerHTML = `
-    <div onclick="event.stopPropagation();" style="display:flex;flex-direction:column;gap:8px;padding:4px 0;">
-      <textarea id="coach-note-${runId}" rows="2" class="form-control"
-        placeholder="Any context for the coach? (optional) — e.g. "slept poorly", "dehydrated", "running at altitude"…"
-        style="font-size:13px;resize:vertical;"></textarea>
-      <div style="display:flex;gap:8px;">
-        <button class="btn btn-primary" style="font-size:13px;" id="generate-btn-${runId}"
-          onclick="event.stopPropagation();generateFeedback('${runId}')">
-          ${Icons.sparkles} Generate Feedback
-        </button>
-        <button class="btn btn-secondary" style="font-size:13px;"
-          onclick="event.stopPropagation();generateFeedback('${runId}')">
-          Skip
-        </button>
-      </div>
-    </div>`;
-  const ta = document.getElementById(`coach-note-${runId}`);
-  if (ta) ta.focus();
+let _feedbackRunId = null;
+
+function openFeedbackModal(runId) {
+  _feedbackRunId = runId;
+  const input = document.getElementById("feedback-notes-input");
+  input.value = "";
+  document.getElementById("feedback-notes-backdrop").classList.remove("hidden");
+  requestAnimationFrame(() => input.focus());
 }
 
-async function generateFeedback(runId) {
-  const noteEl = document.getElementById(`coach-note-${runId}`);
-  const coachNote = noteEl ? noteEl.value.trim() : "";
+function closeFeedbackModal(e) {
+  if (e && e.target !== document.getElementById("feedback-notes-backdrop")) return;
+  document.getElementById("feedback-notes-backdrop").classList.add("hidden");
+  _feedbackRunId = null;
+}
+
+function confirmFeedbackGenerate() {
+  const runId = _feedbackRunId;
+  if (!runId) return;
+  const coachNote = document.getElementById("feedback-notes-input").value.trim();
+  document.getElementById("feedback-notes-backdrop").classList.add("hidden");
+  _feedbackRunId = null;
+  generateFeedback(runId, coachNote);
+}
+
+async function generateFeedback(runId, coachNote = "") {
   const container = document.getElementById(`feedback-trigger-${runId}`);
   if (container) {
     container.innerHTML = `<div style="padding:10px 0 4px;color:var(--text-sec);font-size:13px;">
@@ -243,7 +243,7 @@ async function generateFeedback(runId) {
     if (container) {
       container.innerHTML = `<div style="padding:10px 0 4px;">
         <button class="btn btn-secondary" style="font-size:13px;"
-          onclick="event.stopPropagation();showCoachNoteInput('${runId}')">
+          onclick="event.stopPropagation();openFeedbackModal('${runId}')">
           ${Icons.sparkles} Get Takbo Coach Feedback
         </button>
         <p style="font-size:12px;color:var(--error,#e53e3e);margin-top:6px;">${err.message || "Failed to generate feedback."}</p>

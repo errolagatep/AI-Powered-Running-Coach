@@ -37,6 +37,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     renderSetupChecklist(goal, plan, runs);
     renderWeeklyRecap(runs, plan, gam);
     renderTodayWorkout(plan);
+    renderCoachingInsights(runs);
     renderRuns(runs);
     if (gam) renderGamification(gam);
     if (achievements) checkNewAchievements(achievements);
@@ -346,6 +347,10 @@ function renderTodayWorkout(planData) {
                onclick="openLogModal({distance_km:${workout.distance_km || ''}})">
                + Log this run
              </button>
+             <button class="btn btn-secondary" style="font-size:13px;padding:7px 14px;"
+               onclick="_downloadTodayFit()" title="Download for Garmin">
+               ⌚ Garmin FIT
+             </button>
              <a href="/training_plan.html" class="today-workout-link" style="margin:0;">View full week →</a>
            </div>`
         : `<a href="/training_plan.html" class="today-workout-link">View full week →</a>`
@@ -354,8 +359,122 @@ function renderTodayWorkout(planData) {
   el.classList.remove("hidden");
 }
 
+async function _downloadTodayFit() {
+  try {
+    const token = localStorage.getItem("token");
+    const resp  = await fetch("/api/plans/garmin-fit", {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!resp.ok) {
+      const body = await resp.json().catch(() => ({}));
+      alert(body.detail || "Could not generate workout file.");
+      return;
+    }
+    const blob = await resp.blob();
+    const cd   = resp.headers.get("Content-Disposition") || "";
+    const m    = cd.match(/filename="?([^"]+)"?/);
+    const filename = m ? m[1] : "workout_today.fit";
+    const a = document.createElement("a");
+    a.href  = URL.createObjectURL(blob);
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(a.href);
+  } catch (err) {
+    alert("Download failed. Please try again.");
+  }
+}
+
+function renderCoachingInsights(runs) {
+  const el = document.getElementById("coaching-insights");
+  if (!el || !runs || runs.length < 3) return;
+
+  const insights = [];
+  const user = getUser();
+
+  // Pace trend: compare avg of 3 most-recent vs next 3
+  const paces = runs.slice(0, 6).map(r => r.pace_per_km).filter(Boolean);
+  if (paces.length >= 6) {
+    const recent = (paces[0] + paces[1] + paces[2]) / 3;
+    const older  = (paces[3] + paces[4] + paces[5]) / 3;
+    const diff   = older - recent; // positive = getting faster
+    if (Math.abs(diff) >= 0.083) { // ~5 sec/km threshold
+      const secsDiff = Math.round(Math.abs(diff) * 60);
+      if (diff > 0) {
+        insights.push({
+          icon: "📈",
+          text: `Your pace is improving — ${secsDiff}s/km faster than 3 runs ago. Aerobic fitness is building.`,
+          type: "positive",
+        });
+      } else {
+        insights.push({
+          icon: "📉",
+          text: `Pace has slowed by ${secsDiff}s/km vs your last block. This can signal fatigue — check effort and sleep.`,
+          type: "warning",
+        });
+      }
+    }
+  }
+
+  // Easy-run HR check: flag if recent low-effort runs had high HR
+  if (user?.max_hr) {
+    const easyRuns = runs.slice(0, 5).filter(r => r.heart_rate_avg && r.effort_level <= 5);
+    const highHR = easyRuns.filter(r => (r.heart_rate_avg / user.max_hr) > 0.80);
+    if (highHR.length >= 2) {
+      insights.push({
+        icon: "💓",
+        text: `HR is running high on easy efforts (${highHR.length} of last 5 easy runs above 80% max HR). Prioritise recovery — slow down further or add a rest day.`,
+        type: "warning",
+      });
+    } else if (easyRuns.length >= 3 && highHR.length === 0) {
+      insights.push({
+        icon: "✅",
+        text: "HR discipline looks good — recent easy runs are staying in zone. Aerobic efficiency is on track.",
+        type: "positive",
+      });
+    }
+  }
+
+  // Consistency check: gap in recent runs
+  if (runs.length >= 2) {
+    const dates = runs.slice(0, 5).map(r => r.date.slice(0, 10)).sort().reverse();
+    if (dates.length >= 2) {
+      const latest = new Date(dates[0]);
+      const prev   = new Date(dates[1]);
+      const dayGap = Math.round((latest - prev) / 86400000);
+      if (dayGap >= 7) {
+        insights.push({
+          icon: "⏸️",
+          text: `${dayGap}-day gap between your last two runs. Ease back in gradually — don't try to make up missed mileage all at once.`,
+          type: "warning",
+        });
+      }
+    }
+  }
+
+  if (insights.length === 0) {
+    el.classList.add("hidden");
+    return;
+  }
+
+  const typeColor = { positive: "#22c55e", warning: "#f97316" };
+  el.innerHTML = `
+    <div class="card" style="padding:14px 18px;">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--text-sec);margin-bottom:12px;">
+        Coach Insights
+      </div>
+      ${insights.map((ins, i) => `
+        <div style="display:flex;align-items:flex-start;gap:12px;${i < insights.length - 1 ? "padding-bottom:10px;margin-bottom:10px;border-bottom:1px solid rgba(0,0,0,.06);" : ""}">
+          <span style="font-size:20px;flex-shrink:0;line-height:1.2;">${ins.icon}</span>
+          <span style="font-size:13px;color:var(--text);line-height:1.6;">${ins.text}</span>
+        </div>`).join("")}
+    </div>`;
+  el.classList.remove("hidden");
+}
+
 // Refresh dashboard run list after a run is logged via the quick modal
-window._qlmOnRunLogged = async function () {
+window._qlmOnRunLogged = async function (run) {
   try {
     const [runs, progress, gam] = await Promise.all([
       api.get("/runs/?limit=10"),
@@ -363,11 +482,33 @@ window._qlmOnRunLogged = async function () {
       api.get("/gamification/").catch(() => null),
     ]);
     renderStats(progress, runs);
+    renderCoachingInsights(runs);
     renderRuns(runs);
     if (gam) renderGamification(gam);
+    if (run?.plan_adjusted) {
+      _showPlanAdjustedToast(run.plan_adjustment_reason);
+    }
     lucide.createIcons();
   } catch (_) {}
 };
+
+function _showPlanAdjustedToast(reason) {
+  const container = document.getElementById("toast-container");
+  if (!container) return;
+  const toast = document.createElement("div");
+  toast.className = "toast-achievement";
+  toast.innerHTML = `
+    <div class="toast-icon" style="font-size:20px;">🔄</div>
+    <div class="toast-body">
+      <div class="toast-title">Training Plan Updated</div>
+      <div class="toast-name"><a href="/training_plan.html" style="color:inherit;">View updated plan →</a></div>
+      <div class="toast-desc">${escapeHtml(reason || "Remaining workouts adjusted based on this run.")}</div>
+    </div>
+    <button class="toast-close" onclick="this.parentElement.remove()">×</button>
+  `;
+  container.appendChild(toast);
+  setTimeout(() => toast.remove(), 9000);
+}
 
 function isWithin7Days(dateStr) {
   const runDay    = dateStr.slice(0, 10); // "YYYY-MM-DD"

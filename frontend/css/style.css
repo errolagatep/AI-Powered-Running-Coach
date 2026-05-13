@@ -2060,6 +2060,25 @@ input[type="range"]::-webkit-slider-thumb {
   border-color: var(--accent);
 }
 
+.btn-garmin {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #1b6ec2;
+  background: rgba(27,110,194,0.08);
+  border: 1.5px solid rgba(27,110,194,0.25);
+  border-radius: 6px;
+  padding: 5px 10px;
+  cursor: pointer;
+  transition: color .15s, border-color .15s, background .15s;
+}
+.btn-garmin:hover {
+  background: rgba(27,110,194,0.15);
+  border-color: #1b6ec2;
+}
+
 /* Card state while a variation is being generated */
 .workout-card.varying {
   opacity: 0.6;

@@ -1,7 +1,8 @@
 import anthropic
 import json
+import math
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, date as _date
 
 COACH_SYSTEM_PROMPT = """You are an expert running coach with 20+ years of experience coaching athletes \
 from beginners to competitive runners. You use evidence-based periodization principles (80/20 training, \
@@ -22,6 +23,9 @@ def _fmt_pace(pace_per_km: float) -> str:
     """Format decimal minutes as mm:ss per km."""
     minutes = int(pace_per_km)
     seconds = int(round((pace_per_km - minutes) * 60))
+    if seconds == 60:          # rounding overflow: e.g. 5:59.5 → 6:00 not 5:60
+        minutes += 1
+        seconds = 0
     return f"{minutes}:{seconds:02d}"
 
 
@@ -31,6 +35,164 @@ def _run_to_context_line(r: dict) -> str:
     if r.get("heart_rate_avg"):
         line += f", HR {r['heart_rate_avg']}bpm"
     return line
+
+
+# HR ceiling as % of max HR by workout type
+_HR_ZONE_CEILINGS = {
+    "Easy Run":          0.75,
+    "Recovery Run":      0.72,
+    "Long Run":          0.78,
+    "Aerobic Run":       0.82,
+    "Tempo Run":         0.90,
+    "Interval Training": 0.95,
+    "Hill Repeats":      0.95,
+}
+_DEFAULT_HR_CEILING = 0.82   # moderate / unclassified
+
+
+def _hr_zone_compliance(
+    run: dict,
+    workout_type: str,
+    planned_workout: Optional[dict],
+    max_hr: Optional[int],
+) -> Optional[dict]:
+    """Return HR zone compliance data, or None if max_hr / HR data unavailable."""
+    if not max_hr or not run.get("heart_rate_avg"):
+        return None
+
+    actual_hr = run["heart_rate_avg"]
+
+    # Try to refine ceiling from planned intensity label
+    intensity = ((planned_workout or {}).get("intensity") or "").lower()
+    if "easy" in intensity or "recovery" in intensity:
+        ceiling_pct = 0.75
+    elif "long" in intensity:
+        ceiling_pct = 0.78
+    elif "tempo" in intensity or "threshold" in intensity:
+        ceiling_pct = 0.90
+    elif "interval" in intensity or "hard" in intensity or "hill" in intensity:
+        ceiling_pct = 0.95
+    else:
+        ceiling_pct = _HR_ZONE_CEILINGS.get(workout_type, _DEFAULT_HR_CEILING)
+
+    hr_ceiling = int(max_hr * ceiling_pct)
+    over_by = actual_hr - hr_ceiling   # negative = under ceiling
+
+    if over_by <= 0:
+        compliance = "compliant"
+    elif over_by <= 5:
+        compliance = "near-zone"      # small tolerance
+    elif over_by <= 12:
+        compliance = "slightly-over"
+    else:
+        compliance = "over-zone"
+
+    return {
+        "ceiling_pct": int(ceiling_pct * 100),
+        "hr_ceiling":  hr_ceiling,
+        "actual_hr":   actual_hr,
+        "hr_pct":      round(actual_hr / max_hr * 100, 1),
+        "over_by":     over_by,
+        "compliance":  compliance,
+    }
+
+
+def _hr_zone_context(zone: dict, workout_type: str) -> str:
+    if not zone:
+        return ""
+    c = zone["compliance"]
+    lines = [f"\n## HR Zone Assessment"]
+    lines.append(f"- Workout target: {workout_type}")
+    lines.append(f"- HR ceiling: {zone['hr_ceiling']} bpm ({zone['ceiling_pct']}% max HR)")
+    lines.append(f"- Actual HR: {zone['actual_hr']} bpm ({zone['hr_pct']}% max HR)")
+
+    if c == "compliant":
+        lines.append("- Zone compliance: COMPLIANT (athlete held HR in correct zone)")
+        lines.append("- Pace interpretation: any pace deficit reflects current aerobic capacity — NOT a failure")
+    elif c == "near-zone":
+        lines.append(f"- Zone compliance: NEAR-ZONE ({zone['over_by']} bpm over ceiling — within tolerance)")
+        lines.append("- Pace interpretation: HR discipline was good; slow pace is aerobic capacity, not execution failure")
+    elif c == "slightly-over":
+        lines.append(f"- Zone compliance: SLIGHTLY OVER ({zone['over_by']} bpm above ceiling)")
+    else:
+        lines.append(f"- Zone compliance: OVER ZONE ({zone['over_by']} bpm above ceiling — significant drift)")
+
+    return "\n".join(lines)
+
+
+def _trend_context(recent_runs: list, max_hr: Optional[int] = None) -> str:
+    """Compute pace and HR trend lines from recent runs (most-recent-first)."""
+    if len(recent_runs) < 4:
+        return ""
+
+    lines = []
+
+    # Pace trend: avg of 3 most recent vs avg of next 3
+    paces = [r["pace_per_km"] for r in recent_runs if r.get("pace_per_km")]
+    if len(paces) >= 6:
+        avg_recent = sum(paces[:3]) / 3
+        avg_older  = sum(paces[3:6]) / 3
+        diff = avg_older - avg_recent   # positive = getting faster
+        if abs(diff) >= 0.1:
+            direction = "faster" if diff > 0 else "slower"
+            lines.append(f"- Pace trend: {direction} by {abs(diff):.1f} min/km vs 3 runs ago")
+        else:
+            lines.append("- Pace trend: stable over last 6 runs")
+
+    # HR trend: compare two halves of HR-recorded runs
+    hr_runs = [r for r in recent_runs if r.get("heart_rate_avg")]
+    if len(hr_runs) >= 4:
+        mid = len(hr_runs) // 2
+        avg_recent_hr = sum(r["heart_rate_avg"] for r in hr_runs[:mid]) / mid
+        avg_older_hr  = sum(r["heart_rate_avg"] for r in hr_runs[mid:mid * 2]) / mid
+        hr_diff = avg_recent_hr - avg_older_hr   # positive = HR rising
+        if abs(hr_diff) >= 4:
+            if hr_diff > 0:
+                lines.append(f"- HR trend: cardiac load RISING ({hr_diff:+.0f} bpm avg) — possible fatigue or heat stress")
+            else:
+                lines.append(f"- HR trend: cardiac efficiency IMPROVING ({hr_diff:+.0f} bpm avg) — aerobic adaptation")
+        else:
+            lines.append("- HR trend: stable")
+
+    # Flag easy runs where HR exceeded 80% of max HR
+    if max_hr:
+        flags = []
+        for r in recent_runs[:5]:
+            hr = r.get("heart_rate_avg")
+            effort = r.get("effort_level") or 99
+            if hr and effort <= 6:
+                pct = hr / max_hr * 100
+                if pct > 80:
+                    flags.append(f"  {str(r.get('date',''))[:10]}: easy-effort run at {pct:.0f}% max HR ({hr} bpm)")
+        if flags:
+            lines.append("- Easy-run HR concern (>80% max HR on low-effort runs):")
+            lines.extend(flags)
+
+    return "\n## Pace & HR Trends\n" + "\n".join(lines) if lines else ""
+
+
+def _extract_json_block(text: str) -> str:
+    """Strip markdown fences and extract the outermost JSON object or array."""
+    text = text.strip()
+    if text.startswith("```"):
+        lines = text.split("\n")
+        text = "\n".join(lines[1:]).rstrip("`").strip()
+
+    obj_start, obj_end = text.find("{"), text.rfind("}")
+    arr_start, arr_end = text.find("["), text.rfind("]")
+    has_obj = obj_start != -1 and obj_end > obj_start
+    has_arr = arr_start != -1 and arr_end > arr_start
+
+    if has_obj and has_arr:
+        # Whichever opens first is the outermost container
+        if obj_start < arr_start:
+            return text[obj_start : obj_end + 1]
+        return text[arr_start : arr_end + 1]
+    if has_obj:
+        return text[obj_start : obj_end + 1]
+    if has_arr:
+        return text[arr_start : arr_end + 1]
+    return text
 
 
 def get_onboarding_followup(assessment: dict) -> Optional[str]:
@@ -144,16 +306,10 @@ Reply with JSON only (no explanation outside the JSON):
     )
     for block in response.content:
         if block.type == "text":
-            text = block.text.strip()
-            if text.startswith("```"):
-                text = text.split("```")[1]
-                if text.startswith("json"):
-                    text = text[4:]
-                text = text.strip()
             try:
-                data = json.loads(text)
+                data = json.loads(_extract_json_block(block.text))
                 return {"adjust": bool(data.get("adjust")), "reason": str(data.get("reason", ""))}
-            except (json.JSONDecodeError, KeyError):
+            except (json.JSONDecodeError, KeyError, ValueError):
                 break
     return {"adjust": False, "reason": ""}
 
@@ -199,19 +355,21 @@ Return ONLY the modified days array as valid JSON — no explanation, no markdow
     )
     for block in response.content:
         if block.type == "text":
-            text = block.text.strip()
-            if text.startswith("```"):
-                lines = text.split("\n")
-                text = "\n".join(lines[1:]).rstrip("`").strip()
-            try:
-                modified_upcoming = json.loads(text)
-                past_and_today = [d for d in plan_json.get("days", []) if d.get("day") not in _DAYS_ORDER or _DAYS_ORDER.index(d["day"]) <= today_idx]
-                plan_json = dict(plan_json)
-                plan_json["days"] = past_and_today + modified_upcoming
-                return plan_json
-            except (json.JSONDecodeError, KeyError, ValueError):
-                break
-    return plan_json
+            modified_upcoming = json.loads(_extract_json_block(block.text))
+            if not isinstance(modified_upcoming, list):
+                raise ValueError("Claude returned non-list JSON for plan adjustment")
+            # Validate day names before reconstructing to catch Claude typos
+            invalid = [d.get("day") for d in modified_upcoming if d.get("day") not in _DAYS_ORDER]
+            if invalid:
+                raise ValueError(f"Claude returned invalid day names: {invalid}")
+            past_and_today = [
+                d for d in plan_json.get("days", [])
+                if d.get("day") in _DAYS_ORDER and _DAYS_ORDER.index(d["day"]) <= today_idx
+            ]
+            plan_json = dict(plan_json)
+            plan_json["days"] = past_and_today + modified_upcoming
+            return plan_json
+    raise ValueError("No text block returned by Claude for plan adjustment")
 
 
 def _infer_workout_type(run: dict, recent_runs: list) -> str:
@@ -220,13 +378,15 @@ def _infer_workout_type(run: dict, recent_runs: list) -> str:
     pace = run.get("pace_per_km", 6.0)
     notes = (run.get("notes") or "").lower()
 
-    # Check notes for explicit keywords
+    # Check notes for explicit keywords — long/lsd must precede easy/recovery
     if any(kw in notes for kw in ["tempo", "threshold"]):
         return "Tempo Run"
     if any(kw in notes for kw in ["interval", "repeat", "rep ", "x ", "400", "800", "1000m", "1km rep"]):
         return "Interval Training"
-    if any(kw in notes for kw in ["long run", "lsd", "easy", "recovery"]):
-        return "Easy Run" if effort <= 5 else "Long Run"
+    if any(kw in notes for kw in ["long run", "lsd"]):
+        return "Long Run"
+    if any(kw in notes for kw in ["easy", "recovery"]):
+        return "Easy Run"
 
     # Infer from effort and pace relative to recent average
     if recent_runs:
@@ -336,17 +496,33 @@ def generate_run_feedback(
         history += "\n".join(_run_to_context_line(r) for r in recent_runs[:5])
         parts.append(history)
 
+    max_hr = (user_profile or {}).get("max_hr")
+
+    zone = _hr_zone_compliance(run, workout_type, planned_workout, max_hr)
+    zone_ctx = _hr_zone_context(zone, workout_type)
+    if zone_ctx:
+        parts.append(zone_ctx)
+
+    trend = _trend_context(recent_runs, max_hr)
+    if trend:
+        parts.append(trend)
+
     if goal:
+        race_date_str = str(goal["race_date"])[:10]
         try:
-            race_date = datetime.fromisoformat(str(goal["race_date"]).replace("Z", "").split(".")[0])
-            weeks_until = max(0, (race_date - datetime.utcnow()).days // 7)
+            race_date_obj = _date.fromisoformat(race_date_str)
+            days_until = max(0, (race_date_obj - _date.today()).days)
+            weeks_until = math.ceil(days_until / 7) if days_until > 0 else 0
+            timing = f"{weeks_until} weeks ({days_until} days)"
         except Exception:
-            weeks_until = "unknown"
-        goal_txt = f"\n## Current Goal\n- Race: {goal['race_type']}\n- Weeks until race: {weeks_until}"
+            timing = "unknown"
+        goal_txt = f"\n## Current Goal\n- Race: {goal['race_type']}\n- Race date: {race_date_str}\n- Time until race: {timing}"
         if goal.get("target_time_min"):
             hrs = int(goal["target_time_min"] // 60)
             mins = int(goal["target_time_min"] % 60)
             goal_txt += f"\n- Target time: {hrs}h {mins}m" if hrs else f"\n- Target time: {mins} min"
+        if goal.get("goal_description"):
+            goal_txt += f"\n- Goal notes: {goal['goal_description']}"
         parts.append(goal_txt)
 
     if user_profile:
@@ -413,17 +589,31 @@ def generate_run_feedback(
             "(e.g. solid negative split, HR too high for easy pace, strong finish)."
         )
 
+    hr_rule = ""
+    if zone and zone["compliance"] in ("compliant", "near-zone"):
+        hr_rule = (
+            "\nHR EVALUATION RULE (mandatory): The HR Zone Assessment shows this athlete held their HR "
+            "in the correct zone. HR compliance is the PRIMARY success metric for this workout type. "
+            "If pace was below the planned target, DO NOT frame that as a failure or criticism — "
+            "instead acknowledge their HR discipline and explain that pace at this HR will naturally "
+            "improve as aerobic fitness develops. Never penalise an athlete for running slowly when "
+            "they controlled their heart rate correctly.\n"
+        )
+
     prompt = (
         f"{context}\n\n"
+        f"{hr_rule}"
         f"This athlete completed a {workout_type}. Write coaching feedback in 3 short paragraphs — no headings, no bullet points:\n\n"
         f"{p1_instruction}\n\n"
-        f"{p2_instruction}\n\n"
+        f"{p2_instruction} If the Pace & HR Trends section is present, reference it specifically — "
+        "call out whether pace is trending in the right direction and whether HR is appropriate for the effort and proximity to the goal race date.\n\n"
         "Paragraph 3 — Recovery: Give concrete recovery advice for the next 24 hours "
         "based on the effort level and workout type "
         "(e.g. for tempo/intervals: protein within 30 min, legs-up rest, easy 20-min walk tomorrow; "
         "for easy runs: light stretching, hydration).\n\n"
+        "IMPORTANT: Use the exact race date from the Current Goal section — do not reference any other goal or date. "
         "Do NOT suggest the next workout or training session — that is handled separately. "
-        "Be direct, specific, and acknowledge the workout type explicitly. Target 110–140 words total."
+        "Be direct, specific, and acknowledge the workout type explicitly. Target 120–160 words total."
     )
 
     response = get_client().messages.create(
@@ -812,31 +1002,13 @@ def generate_weekly_plan(
 
     if goal:
         try:
-            race_date = datetime.fromisoformat(str(goal["race_date"]).replace("Z", "").split(".")[0])
-            weeks_until = max(0, (race_date - datetime.utcnow()).days // 7)
+            race_date_obj = _date.fromisoformat(str(goal["race_date"])[:10])
+            weeks_until = max(0, math.ceil((race_date_obj - _date.today()).days / 7))
         except Exception:
             weeks_until = "unknown"
         context += f"\nGoal race: {goal['race_type']} in {weeks_until} weeks"
         if goal.get("target_time_min"):
             context += f" (target: {goal['target_time_min']:.0f} min)"
-
-    if week_context:
-        context += (
-            f"\n\n## Program Context\n"
-            f"This is Week {week_context['week_number']} of {week_context.get('total_weeks', '?')} "
-            f"in a full training program.\n"
-            f"Phase: {week_context['phase']}\n"
-            f"Weekly focus: {week_context['focus']}\n"
-            f"Target total km this week: {week_context['target_km']} km\n"
-            f"Target long run: {week_context['target_long_run_km']} km\n"
-            f"Key workout: {week_context['key_workout']}\n"
-        )
-        if week_context.get("notes"):
-            context += f"Coaching notes: {week_context['notes']}\n"
-        context += (
-            "IMPORTANT: The 7-day plan MUST align with the phase and target_km above. "
-            "Do not deviate significantly from the target km.\n"
-        )
 
     if coach_notes:
         context += f"\n\n## Coach Notes (incorporate these into the plan)\n{coach_notes}\n"
@@ -878,6 +1050,27 @@ def generate_weekly_plan(
 
     schema_hint = json.dumps(plan_schema, indent=2)
 
+    # If a program skeleton entry exists, prepend it as a hard constraint BEFORE the athlete context
+    skeleton_prefix = ""
+    if week_context:
+        key_workout = week_context.get("key_workout", "")
+        skeleton_prefix = (
+            f"## MANDATORY PROGRAM CONSTRAINT — read this first\n"
+            f"This is Week {week_context.get('week_number', '?')} of {week_context.get('total_weeks', '?')} "
+            f"in a structured {week_context.get('total_weeks', '?')}-week training program.\n"
+            f"- Phase: {week_context.get('phase', '')}\n"
+            f"- Weekly focus: {week_context.get('focus', '')}\n"
+            f"- Target total km: {week_context.get('target_km', '?')} km (stay within ±5% of this)\n"
+            f"- Target long run: {week_context.get('target_long_run_km', '?')} km\n"
+            f"- KEY WORKOUT (MANDATORY): {key_workout}\n"
+        )
+        if week_context.get("notes"):
+            skeleton_prefix += f"- Coaching note: {week_context['notes']}\n"
+        skeleton_prefix += (
+            f"\nThe key workout '{key_workout}' MUST appear in the 7-day plan — do not omit or replace it.\n"
+            "All workouts must reflect the phase and focus above. Weekly total km must respect the target.\n\n"
+        )
+
     response = get_client().messages.create(
         model="claude-opus-4-6",
         max_tokens=2500,
@@ -885,7 +1078,8 @@ def generate_weekly_plan(
         messages=[{
             "role": "user",
             "content": (
-                f"{context}\n\n"
+                f"{skeleton_prefix}"
+                f"## Athlete & Training Context\n{context}\n\n"
                 "Create a 7-day training plan (Monday–Sunday). Include all 7 days including rest days.\n"
                 "Workout types: Easy Run, Tempo Run, Interval Training, Long Run, Cross Training, Rest, Active Recovery.\n"
                 "For Rest and Active Recovery days set distance_km and duration_min to 0.\n"

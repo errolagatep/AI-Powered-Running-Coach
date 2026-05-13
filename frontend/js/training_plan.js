@@ -306,11 +306,43 @@ async function loadPlan() {
 
 // Refresh plan day status markers after a run is logged via the quick modal
 window._qlmOnRunLogged = async function (run) {
+  if (run?.plan_adjusted && currentProgram) {
+    // Plan was modified — reload from server so we display the updated workouts
+    try {
+      const freshPlan = await api.get("/plans/current");
+      if (freshPlan?.id) {
+        currentPlanId = freshPlan.id;
+        currentPlanData = freshPlan;
+      }
+    } catch (_) {}
+    _showPlanAdjustedToast(run.plan_adjustment_reason);
+  }
   if (currentPlanData?.week_start) {
     await loadWeekRuns(currentPlanData.week_start);
     renderPlan(currentPlanData);
   }
 };
+
+function _showPlanAdjustedToast(reason) {
+  const existing = document.getElementById("_plan-adj-toast");
+  if (existing) existing.remove();
+  const toast = document.createElement("div");
+  toast.id = "_plan-adj-toast";
+  toast.style.cssText = "position:fixed;top:76px;right:20px;z-index:9999;max-width:340px;animation:fadeIn .3s ease;";
+  toast.innerHTML = `
+    <div style="background:var(--card,#fff);border:1.5px solid var(--accent,#F97316);border-radius:12px;
+      padding:14px 16px;box-shadow:0 4px 20px rgba(0,0,0,.18);display:flex;gap:12px;align-items:flex-start;">
+      <span style="font-size:20px;flex-shrink:0;">🔄</span>
+      <div style="flex:1;">
+        <div style="font-weight:700;font-size:13px;color:var(--text,#111);margin-bottom:3px;">Training plan updated</div>
+        <div style="font-size:12px;color:var(--text-sec,#666);line-height:1.5;">${escapeHtml(reason || "Your coach adjusted remaining workouts based on this run.")}</div>
+        <a href="/training_plan.html" style="font-size:12px;color:var(--accent,#F97316);font-weight:600;display:inline-block;margin-top:6px;">View updated plan →</a>
+      </div>
+      <button onclick="this.closest('#_plan-adj-toast').remove()" style="background:none;border:none;cursor:pointer;font-size:18px;color:var(--text-sec,#666);padding:0;line-height:1;">×</button>
+    </div>`;
+  document.body.appendChild(toast);
+  setTimeout(() => toast?.remove(), 9000);
+}
 
 // Parse "YYYY-MM-DD..." as a local-date number (days since epoch) to avoid UTC shift
 function dateStrToLocalKey(dateStr) {
@@ -441,14 +473,21 @@ function workoutCard(day, run) {
     ? `<span class="workout-variation-badge">${Icons.shuffle} Varied</span>`
     : "";
 
-  // Footer buttons: reschedule always shown for incomplete days in current week; hidden for past weeks
+  // Footer buttons
   let footerHtml = "";
-  if (!run && currentPlanId && !_isPastWeekView) {
-    const rescheduleBtn = `<button class="btn-reschedule" onclick="event.stopPropagation();openRescheduleModal('${day.day}')">${Icons.calendar} Reschedule</button>`;
-    const varyBtn = !isRest
+  if (!_isPastWeekView && currentPlanId) {
+    const rescheduleBtn = !run
+      ? `<button class="btn-reschedule" onclick="event.stopPropagation();openRescheduleModal('${day.day}')">${Icons.calendar} Reschedule</button>`
+      : "";
+    const varyBtn = !isRest && !run
       ? `<button class="btn-vary" onclick="event.stopPropagation();varyWorkout('${day.day}')">${Icons.shuffle} Vary workout</button>`
       : "";
-    footerHtml = `<div class="workout-card-footer">${rescheduleBtn}${varyBtn}</div>`;
+    const garminBtn = !isRest
+      ? `<button class="btn-garmin" onclick="event.stopPropagation();downloadGarminFit('${day.day}')" title="Download for Garmin">⌚ Garmin</button>`
+      : "";
+    if (rescheduleBtn || varyBtn || garminBtn) {
+      footerHtml = `<div class="workout-card-footer">${rescheduleBtn}${varyBtn}${garminBtn}</div>`;
+    }
   }
 
   const clickAttr = run ? `onclick="openRunDetailById('${run.id}')"` : "";
@@ -733,13 +772,18 @@ function renderProgramBanner(program, planData) {
   const weeksLeft = Math.ceil(daysLeft / 7);
 
   const skeletonWeek = weekNum ? program.skeleton.find(w => w.week_number === weekNum) : null;
-  const phase = skeletonWeek?.phase ?? "";
+  const phase      = skeletonWeek?.phase      ?? "";
+  const focus      = skeletonWeek?.focus      ?? "";
+  const keyWorkout = skeletonWeek?.key_workout ?? "";
 
   const pct = weekNum ? Math.round((weekNum / totalWeeks) * 100) : 0;
 
   document.getElementById("program-week-label").textContent =
     weekNum ? `Week ${weekNum} of ${totalWeeks}` : `${totalWeeks}-Week Program`;
   document.getElementById("program-phase-label").textContent = phase ? `Phase: ${phase}` : "";
+  document.getElementById("program-focus-label").textContent  = focus ? `Focus: ${focus}` : "";
+  document.getElementById("program-key-workout-label").textContent =
+    keyWorkout ? `Key workout: ${keyWorkout}` : "";
   document.getElementById("program-countdown").textContent =
     weeksLeft > 1 ? `${weeksLeft} weeks (${daysLeft} days)` : `${daysLeft} day${daysLeft !== 1 ? "s" : ""}`;
   document.getElementById("program-progress-bar").style.width = `${pct}%`;
@@ -1038,7 +1082,7 @@ function updateWeekNavigator() {
   document.getElementById("week-nav-dates").textContent = rangeStr;
 
   document.getElementById("week-nav-prev").disabled = viewing <= 1;
-  document.getElementById("week-nav-next").disabled = viewing >= (liveWeekNum ?? totalWeeks);
+  document.getElementById("week-nav-next").disabled = !totalWeeks || viewing >= totalWeeks;
 
   const todayBtn = document.getElementById("week-nav-today");
   if (_isPastWeekView) {
@@ -1057,7 +1101,7 @@ async function navigateWeek(dir) {
   if (currentViewing === null) return;
 
   const newWeek = currentViewing + dir;
-  if (newWeek < 1 || newWeek > (liveWeekNum ?? currentProgram.total_weeks)) return;
+  if (newWeek < 1 || newWeek > currentProgram.total_weeks) return;
 
   if (newWeek === liveWeekNum) {
     // Going back to current week — restore from loaded plan data
@@ -1096,7 +1140,9 @@ async function loadWeekByNumber(weekNum) {
     );
 
     viewingWeekNumber = weekNum;
-    _isPastWeekView = true;
+    // Past weeks are read-only; future ungenerated weeks allow generating
+    const liveWeekNum = currentPlanData?.week_number ?? 1;
+    _isPastWeekView = weekNum < liveWeekNum;
 
     // Populate weekRunsMap and weekRunsById from the returned runs
     weekRunsMap = {};
@@ -1122,13 +1168,26 @@ async function loadWeekByNumber(weekNum) {
       renderPlan(pseudoPlanData);
       renderProgramBanner(currentProgram, pseudoPlanData);
     } else {
-      // Week exists in program but plan not generated yet
+      // Future week — not generated yet; show skeleton preview + generate CTA
+      const skeleton = currentProgram.skeleton?.find(w => w.week_number === weekNum);
+      const phase      = skeleton?.phase      ?? "";
+      const focus      = skeleton?.focus      ?? "";
+      const keyWorkout = skeleton?.key_workout ?? "";
+      const targetKm   = skeleton?.target_km  ?? "?";
+
       document.getElementById("plan-container").classList.add("hidden");
       document.getElementById("plan-summary").innerHTML = "";
-      document.getElementById("plan-grid").innerHTML =
-        `<div style="grid-column:1/-1;text-align:center;padding:32px;color:var(--text-sec);">
-           Week ${weekNum} plan hasn't been generated yet.
-         </div>`;
+      document.getElementById("plan-grid").innerHTML = `
+        <div style="grid-column:1/-1;text-align:center;padding:40px 20px;">
+          <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:8px;">Week ${weekNum} — Not yet generated</div>
+          ${phase      ? `<div style="font-size:13px;color:var(--accent);font-weight:600;margin-bottom:4px;">Phase: ${phase}</div>` : ""}
+          ${focus      ? `<div style="font-size:13px;color:var(--text-sec);margin-bottom:4px);">${focus}</div>` : ""}
+          ${keyWorkout ? `<div style="font-size:12px;color:var(--text-sec);margin-bottom:4px;">Key workout: ${keyWorkout}</div>` : ""}
+          ${targetKm !== "?" ? `<div style="font-size:12px;color:var(--text-sec);margin-bottom:20px;">Target: ${targetKm} km</div>` : `<div style="margin-bottom:20px;"></div>`}
+          <button class="btn btn-primary" onclick="generateWeekFromNav(${weekNum})">
+            Generate Week ${weekNum}
+          </button>
+        </div>`;
       document.getElementById("plan-container").classList.remove("hidden");
       renderProgramBanner(currentProgram, { week_number: weekNum, total_weeks: data.total_weeks });
     }
@@ -1138,6 +1197,76 @@ async function loadWeekByNumber(weekNum) {
     const alertEl = document.getElementById("alert");
     alertEl.textContent = err.message || "Failed to load week.";
     alertEl.classList.remove("hidden");
+  } finally {
+    document.getElementById("plan-loading").classList.add("hidden");
+  }
+}
+
+async function downloadGarminFit(dayName) {
+  try {
+    const token = localStorage.getItem("token");
+    const qs    = dayName ? `?day=${encodeURIComponent(dayName)}` : "";
+    const resp  = await fetch(`/api/plans/garmin-fit${qs}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!resp.ok) {
+      const body = await resp.json().catch(() => ({}));
+      alert(body.detail || "Could not generate workout file.");
+      return;
+    }
+    const blob = await resp.blob();
+    const cd   = resp.headers.get("Content-Disposition") || "";
+    const m    = cd.match(/filename="?([^"]+)"?/);
+    const filename = m ? m[1] : `workout_${dayName || "today"}.fit`;
+
+    const a = document.createElement("a");
+    a.href  = URL.createObjectURL(blob);
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(a.href);
+  } catch (err) {
+    alert("Download failed. Please try again.");
+    console.error(err);
+  }
+}
+
+async function generateWeekFromNav(weekNum) {
+  if (!currentProgram) return;
+  document.getElementById("plan-loading").classList.remove("hidden");
+  document.getElementById("plan-container").classList.add("hidden");
+  document.getElementById("alert").classList.add("hidden");
+
+  try {
+    const data = await api.post("/plans/next-week", {
+      program_id: currentProgram.id,
+      week_number: weekNum,
+    });
+
+    // If this is the immediate next week, promote it to the live current plan
+    const liveWeekNum = currentPlanData?.week_number ?? 0;
+    if (weekNum === liveWeekNum + 1) {
+      currentPlanId   = data.id;
+      currentPlanData = data;
+      viewingWeekNumber = null;
+      _isPastWeekView   = false;
+    } else {
+      // Stay in the "viewing" context — just show the freshly generated week
+      viewingWeekNumber = weekNum;
+      _isPastWeekView   = false;
+    }
+
+    await loadWeekRuns(data.week_start);
+    renderPlan(data);
+    renderProgramBanner(currentProgram, data);
+    updateWeekNavigator();
+    updateHeaderButtons();
+  } catch (err) {
+    const alertEl = document.getElementById("alert");
+    alertEl.textContent = err.message || "Failed to generate week.";
+    alertEl.classList.remove("hidden");
+    document.getElementById("plan-container").classList.remove("hidden");
   } finally {
     document.getElementById("plan-loading").classList.add("hidden");
   }
