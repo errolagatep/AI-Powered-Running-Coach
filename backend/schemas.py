@@ -86,6 +86,7 @@ class RunUpdate(BaseModel):
     heart_rate_avg: Optional[int] = None
     effort_level: Optional[int] = None
     notes: Optional[str] = None
+    coach_note: Optional[str] = None  # appended to notes on save
 
 
 class RunResponse(BaseModel):
@@ -104,6 +105,8 @@ class RunResponse(BaseModel):
     created_at: datetime
     strava_activity_id: Optional[int] = None
     route_polyline: Optional[str] = None
+    elevation_gain: Optional[float] = None
+    sport_type: Optional[str] = None
     new_achievements: Optional[List] = None
     plan_adjusted: Optional[bool] = None
     plan_adjustment_reason: Optional[str] = None

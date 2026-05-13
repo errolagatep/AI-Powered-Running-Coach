@@ -296,3 +296,145 @@
   };
 
 })();
+
+// ── Shared Feedback Notes Modal ───────────────────────────────────────────────
+// Available on every page that includes log_modal.js.
+// Pages must define window.generateFeedback(runId, coachNote) to handle the call.
+(function () {
+  let _runId = null;
+
+  function _inject() {
+    if (document.getElementById("feedback-notes-backdrop")) return;
+    document.body.insertAdjacentHTML("beforeend", `
+<div id="feedback-notes-backdrop" class="modal-backdrop hidden" onclick="closeFeedbackModal(event)">
+  <div class="modal-card" style="max-width:440px;">
+    <div class="modal-header">
+      <span class="modal-title">Get Coach Feedback</span>
+      <button class="modal-close" onclick="closeFeedbackModal()">&times;</button>
+    </div>
+    <div style="padding:0 24px;">
+      <label class="form-label">Note to your coach <span style="font-weight:400;color:var(--text-sec);">(optional)</span></label>
+      <textarea id="feedback-notes-input" rows="3" class="form-control" style="resize:vertical;margin-top:6px;"
+        placeholder="e.g. slept poorly, felt dehydrated, running at altitude, tight calves…"
+        onkeydown="if(event.ctrlKey&&event.key==='Enter'){event.preventDefault();confirmFeedbackGenerate();}"></textarea>
+      <p style="font-size:12px;color:var(--text-sec);margin-top:6px;">Your coach reads this before generating feedback.</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeFeedbackModal()">Cancel</button>
+      <button class="btn btn-primary" id="feedback-confirm-btn" onclick="confirmFeedbackGenerate()">Generate Feedback</button>
+    </div>
+  </div>
+</div>`);
+  }
+
+  window.openFeedbackModal = function (runId) {
+    _inject();
+    _runId = runId;
+    document.getElementById("feedback-notes-input").value = "";
+    document.getElementById("feedback-notes-backdrop").classList.remove("hidden");
+    document.body.style.overflow = "hidden";
+    requestAnimationFrame(() => document.getElementById("feedback-notes-input").focus());
+  };
+
+  window.closeFeedbackModal = function (e) {
+    if (e && e.target !== document.getElementById("feedback-notes-backdrop")) return;
+    document.getElementById("feedback-notes-backdrop").classList.add("hidden");
+    document.body.style.overflow = "";
+    _runId = null;
+  };
+
+  window.confirmFeedbackGenerate = function () {
+    const runId = _runId;
+    if (!runId) return;
+    const coachNote = document.getElementById("feedback-notes-input").value.trim();
+    document.getElementById("feedback-notes-backdrop").classList.add("hidden");
+    document.body.style.overflow = "";
+    _runId = null;
+    if (typeof window.generateFeedback === "function") window.generateFeedback(runId, coachNote);
+  };
+})();
+
+// ── Shared Edit Run Notes Modal ───────────────────────────────────────────────
+// Light-weight notes-only edit — useful for Strava imports that bypassed the log form.
+// After saving, calls window._onRunNotesUpdated(runId, updatedRun) if defined.
+(function () {
+  let _runId = null;
+
+  function _inject() {
+    if (document.getElementById("edit-notes-backdrop")) return;
+    document.body.insertAdjacentHTML("beforeend", `
+<div id="edit-notes-backdrop" class="modal-backdrop hidden" onclick="closeEditNotesModal(event)">
+  <div class="modal-card" style="max-width:440px;">
+    <div class="modal-header">
+      <span class="modal-title">Edit Run Notes</span>
+      <button class="modal-close" onclick="closeEditNotesModal()">&times;</button>
+    </div>
+    <div style="padding:0 24px;">
+      <label class="form-label">Notes</label>
+      <textarea id="edit-notes-input" rows="4" class="form-control" style="resize:vertical;margin-top:6px;"
+        placeholder="How did it feel? Hills, weather, intervals…"></textarea>
+      <div style="margin-top:14px;">
+        <label class="form-label">Effort: <span id="edit-notes-effort-display" style="color:var(--accent);font-weight:700;">5</span>/10</label>
+        <div class="slider-container" style="margin-top:8px;">
+          <span style="font-size:12px;color:var(--text-sec);">Easy</span>
+          <input type="range" class="effort-range" id="edit-notes-effort" min="1" max="10" value="5"
+                 oninput="document.getElementById('edit-notes-effort-display').textContent=this.value" />
+          <span style="font-size:12px;color:var(--text-sec);">Max</span>
+        </div>
+      </div>
+      <div id="edit-notes-error" class="alert alert-error hidden" style="margin-top:10px;"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeEditNotesModal()">Cancel</button>
+      <button class="btn btn-primary" id="edit-notes-save-btn" onclick="confirmEditNotes()">Save</button>
+    </div>
+  </div>
+</div>`);
+  }
+
+  window.openEditNotesModal = function (runId, currentNotes, currentEffort) {
+    _inject();
+    _runId = runId;
+    document.getElementById("edit-notes-input").value = currentNotes || "";
+    const effort = Math.min(10, Math.max(1, parseInt(currentEffort) || 5));
+    document.getElementById("edit-notes-effort").value = effort;
+    document.getElementById("edit-notes-effort-display").textContent = effort;
+    document.getElementById("edit-notes-error").classList.add("hidden");
+    document.getElementById("edit-notes-backdrop").classList.remove("hidden");
+    document.body.style.overflow = "hidden";
+    requestAnimationFrame(() => document.getElementById("edit-notes-input").focus());
+  };
+
+  window.closeEditNotesModal = function (e) {
+    if (e && e.target !== document.getElementById("edit-notes-backdrop")) return;
+    document.getElementById("edit-notes-backdrop").classList.add("hidden");
+    document.body.style.overflow = "";
+    _runId = null;
+  };
+
+  window.confirmEditNotes = async function () {
+    const runId = _runId;
+    if (!runId) return;
+    const notes  = document.getElementById("edit-notes-input").value.trim();
+    const effort = parseInt(document.getElementById("edit-notes-effort").value);
+    const btn    = document.getElementById("edit-notes-save-btn");
+    const errEl  = document.getElementById("edit-notes-error");
+    errEl.classList.add("hidden");
+    btn.disabled = true;
+    btn.textContent = "Saving…";
+    try {
+      const body = { notes, effort_level: effort };
+      const updated = await api.patch(`/runs/${runId}`, body);
+      document.getElementById("edit-notes-backdrop").classList.add("hidden");
+      document.body.style.overflow = "";
+      _runId = null;
+      if (typeof window._onRunNotesUpdated === "function") window._onRunNotesUpdated(runId, updated);
+    } catch (err) {
+      errEl.textContent = err.message || "Failed to save.";
+      errEl.classList.remove("hidden");
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Save";
+    }
+  };
+})();

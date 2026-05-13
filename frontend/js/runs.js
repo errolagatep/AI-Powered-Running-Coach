@@ -128,6 +128,10 @@ function runCard(run) {
   const cls     = effortClass(effort);
   const durStr  = formatDuration(run.duration_min);
   const hrStr   = run.heart_rate_avg ? `${run.heart_rate_avg} bpm` : "—";
+  const elevStr = run.elevation_gain != null ? `${run.elevation_gain} m` : null;
+  const sportLabel = run.sport_type && run.sport_type !== "Run"
+    ? `<span style="font-size:11px;color:var(--text-sec);margin-left:6px;">${escapeHtml(run.sport_type)}</span>`
+    : "";
   const stravaTag = run.strava_activity_id ? `<span class="strava-tag">Strava</span>` : "";
 
   let expandContent;
@@ -168,7 +172,7 @@ function runCard(run) {
     <div class="run-item ${withMap}" id="rcard-${run.id}" onclick="toggleRunExpand(this)" style="cursor:pointer;">
       <div class="run-item-body">
         <div class="run-item-header">
-          <span class="run-date">${formatDate(run.date)}${stravaTag}</span>
+          <span class="run-date">${formatDate(run.date)}${stravaTag}${sportLabel}</span>
           <div class="run-stats">
             <div class="run-stat">
               <span class="run-stat-value">${formatDistance(run.distance_km)} km</span>
@@ -186,11 +190,23 @@ function runCard(run) {
               <span class="run-stat-value">${hrStr}</span>
               <span class="run-stat-label">Heart Rate</span>
             </div>
+            ${elevStr ? `<div class="run-stat">
+              <span class="run-stat-value">${elevStr}</span>
+              <span class="run-stat-label">Elevation</span>
+            </div>` : ""}
           </div>
           <span class="effort-badge ${cls}">${effort}</span>
         </div>
-        ${run.notes ? `<p class="run-notes">${run.notes}</p>` : ""}
-        <div class="run-expandable"><div>${expandContent}</div></div>
+        ${run.notes ? `<p class="run-notes">${escapeHtml(run.notes)}</p>` : ""}
+        <div class="run-expandable"><div>
+          ${expandContent}
+          <div style="padding:4px 0 8px;">
+            <button class="btn btn-secondary" style="font-size:12px;padding:4px 10px;"
+              onclick="event.stopPropagation();openEditNotesModal('${run.id}',${JSON.stringify(run.notes||'')},${run.effort_level})">
+              ✏️ ${run.notes ? "Edit notes" : "Add notes"}
+            </button>
+          </div>
+        </div></div>
       </div>
       ${mapPanel}
     </div>
@@ -209,32 +225,8 @@ function isWithin7Days(dateStr) {
   return runDay >= cutoffDay;
 }
 
-let _feedbackRunId = null;
-
-function openFeedbackModal(runId) {
-  _feedbackRunId = runId;
-  const input = document.getElementById("feedback-notes-input");
-  input.value = "";
-  document.getElementById("feedback-notes-backdrop").classList.remove("hidden");
-  requestAnimationFrame(() => input.focus());
-}
-
-function closeFeedbackModal(e) {
-  if (e && e.target !== document.getElementById("feedback-notes-backdrop")) return;
-  document.getElementById("feedback-notes-backdrop").classList.add("hidden");
-  _feedbackRunId = null;
-}
-
-function confirmFeedbackGenerate() {
-  const runId = _feedbackRunId;
-  if (!runId) return;
-  const coachNote = document.getElementById("feedback-notes-input").value.trim();
-  document.getElementById("feedback-notes-backdrop").classList.add("hidden");
-  _feedbackRunId = null;
-  generateFeedback(runId, coachNote);
-}
-
-async function generateFeedback(runId, coachNote = "") {
+// generateFeedback is called by the shared openFeedbackModal in log_modal.js
+window.generateFeedback = async function generateFeedback(runId, coachNote = "") {
   const container = document.getElementById(`feedback-trigger-${runId}`);
   if (container) {
     container.innerHTML = `<div style="padding:10px 0 4px;color:var(--text-sec);font-size:13px;">
@@ -267,6 +259,19 @@ async function generateFeedback(runId, coachNote = "") {
     }
   }
 }
+
+// Called by the shared edit-notes modal in log_modal.js after a successful save
+window._onRunNotesUpdated = function (runId, updated) {
+  const idx = _allLoaded.findIndex(r => r.id === runId);
+  if (idx !== -1) _allLoaded[idx] = updated;
+  const card = document.getElementById(`rcard-${runId}`);
+  if (card) {
+    if (_maps[runId]) { _maps[runId].remove(); delete _maps[runId]; }
+    card.outerHTML = runCard(updated);
+    document.getElementById(`rcard-${runId}`)?.classList.add("run-expanded");
+    initRouteMaps([updated]);
+  }
+};
 
 // ── Route maps ────────────────────────────────────────────────
 function decodePolyline(encoded) {
