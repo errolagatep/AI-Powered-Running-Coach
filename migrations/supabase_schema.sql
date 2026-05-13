@@ -204,3 +204,16 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verification_sent_at  TIMESTAMP
 -- Mark all existing users (registered before this feature) as verified
 -- so they are not locked out. New registrations start as unverified.
 UPDATE users SET email_verified = TRUE WHERE email_verified IS NULL OR email_verified = FALSE;
+
+-- ── Strava improvements ───────────────────────────────────────────────────────
+-- Capture elevation and sport type from Strava activities
+ALTER TABLE run_logs ADD COLUMN IF NOT EXISTS elevation_gain FLOAT;
+ALTER TABLE run_logs ADD COLUMN IF NOT EXISTS sport_type     TEXT;
+
+-- Track last successful sync timestamp for incremental syncing
+ALTER TABLE strava_tokens ADD COLUMN IF NOT EXISTS last_synced_at TIMESTAMPTZ;
+
+-- Index for fast duplicate detection during Strava sync
+CREATE INDEX IF NOT EXISTS idx_run_logs_strava_id
+    ON run_logs (user_id, strava_activity_id)
+    WHERE strava_activity_id IS NOT NULL;

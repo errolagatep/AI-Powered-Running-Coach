@@ -586,17 +586,26 @@ function runCard(run) {
 
   const withMap = run.route_polyline ? "run-item-with-route" : "";
 
-  const actions = run.strava_activity_id ? "" : `
-    <div class="run-actions">
-      <button class="run-action-btn" onclick="event.stopPropagation();openEditModal('${run.id}')">Edit</button>
-      <button class="run-action-btn run-action-danger" onclick="event.stopPropagation();confirmDelete('${run.id}')">Delete</button>
-    </div>`;
+  // Strava runs get Edit (no delete — they stay as history); manual runs get both
+  const actions = run.strava_activity_id
+    ? `<div class="run-actions">
+         <button class="run-action-btn" onclick="event.stopPropagation();openEditModal('${run.id}')">Edit</button>
+       </div>`
+    : `<div class="run-actions">
+         <button class="run-action-btn" onclick="event.stopPropagation();openEditModal('${run.id}')">Edit</button>
+         <button class="run-action-btn run-action-danger" onclick="event.stopPropagation();confirmDelete('${run.id}')">Delete</button>
+       </div>`;
+
+  const elevStr = run.elevation_gain != null ? `${run.elevation_gain} m` : "—";
+  const sportLabel = run.sport_type && run.sport_type !== "Run"
+    ? `<span style="font-size:11px;color:var(--text-sec);margin-left:6px;">${run.sport_type}</span>`
+    : "";
 
   return `
     <div class="run-item ${withMap}" id="run-card-${run.id}" onclick="toggleRunExpand(this)" style="cursor:pointer;">
       <div class="run-item-body">
         <div class="run-item-header">
-          <span class="run-date">${formatDate(run.date)}${stravaTag}</span>
+          <span class="run-date">${formatDate(run.date)}${stravaTag}${sportLabel}</span>
           <div class="run-stats">
             <div class="run-stat">
               <span class="run-stat-value">${formatDistance(run.distance_km)} km</span>
@@ -613,6 +622,10 @@ function runCard(run) {
             <div class="run-stat">
               <span class="run-stat-value">${hrStr}</span>
               <span class="run-stat-label">Heart Rate</span>
+            </div>
+            <div class="run-stat">
+              <span class="run-stat-value">${elevStr}</span>
+              <span class="run-stat-label">Elevation</span>
             </div>
           </div>
           <span class="effort-badge ${cls}">${effort}</span>

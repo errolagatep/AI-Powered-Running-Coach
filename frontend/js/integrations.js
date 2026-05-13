@@ -65,10 +65,10 @@ async function stravaSync() {
   btn.textContent = "Syncing…";
   try {
     const data = await api.post("/integrations/strava/sync", {});
-    showStravaMessage(
-      `Sync complete: ${data.imported} new run${data.imported !== 1 ? "s" : ""} imported, ${data.skipped} already existed.`,
-      "success"
-    );
+    const parts = [`${data.imported} new run${data.imported !== 1 ? "s" : ""} imported`];
+    if (data.updated > 0) parts.push(`${data.updated} updated`);
+    parts.push(`${data.skipped} already up to date`);
+    showStravaMessage(`Sync complete: ${parts.join(", ")}.`, "success");
     if (typeof loadRuns === "function") loadRuns();
     if (data.new_achievements?.length && typeof showAchievementToast === "function") {
       data.new_achievements.forEach((a, i) => {
