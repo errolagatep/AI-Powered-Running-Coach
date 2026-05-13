@@ -38,7 +38,7 @@
   <div class="page-header">
     <div class="section-header" style="margin-bottom:4px;align-items:flex-start;">
       <div>
-        <h1 style="font-size:26px;font-weight:800;letter-spacing:-.4px;">Weekly Training Plan</h1>
+        <h1>Weekly Training Plan</h1>
         <p style="color:var(--text-sec);margin-top:4px;">Personalised by Takbo Coach based on your training history and goals</p>
       </div>
       <div class="plan-actions-wrap" id="header-actions">
@@ -155,10 +155,10 @@
           <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-sec);margin-bottom:4px;">Training Program</div>
           <div id="program-week-label" style="font-size:22px;font-weight:800;color:var(--text);">Week 1 of 8</div>
           <div id="program-phase-label" style="font-size:13px;color:var(--accent);margin-top:2px;font-weight:600;"></div>
-          <div id="program-focus-label" style="font-size:12px;color:var(--text-sec);margin-top:3px;line-height:1.4;"></div>
-          <div id="program-key-workout-label" style="font-size:12px;color:var(--text-sec);margin-top:2px;line-height:1.4;"></div>
+          <div id="program-focus-label" style="font-size:13px;color:var(--text-sec);margin-top:3px;line-height:1.5;"></div>
+          <div id="program-key-workout-label" style="font-size:13px;color:var(--text-sec);margin-top:2px;line-height:1.5;"></div>
         </div>
-        <div style="text-align:right;">
+        <div class="program-countdown-col">
           <div id="program-countdown" style="font-size:16px;font-weight:700;color:var(--text);">—</div>
           <div style="font-size:12px;color:var(--text-sec);margin-top:2px;">until goal date</div>
         </div>
@@ -166,19 +166,19 @@
       <div class="recap-progress-wrap" style="margin-top:12px;">
         <div id="program-progress-bar" class="recap-progress-bar" style="width:0%;"></div>
       </div>
-      <div id="program-progress-label" style="font-size:11px;color:var(--text-sec);margin-top:4px;"></div>
+      <div id="program-progress-label"></div>
     </div>
   </div>
 
   <!-- Week navigator (shown when a program is active) -->
-  <div id="week-navigator" class="hidden" style="margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
-    <button class="btn btn-secondary" id="week-nav-prev" onclick="navigateWeek(-1)" style="padding:6px 14px;font-size:13px;">&#8592; Prev</button>
-    <div style="text-align:center;flex:1;min-width:140px;">
-      <div id="week-nav-label" style="font-size:13px;font-weight:700;"></div>
-      <div id="week-nav-dates" style="font-size:11px;color:var(--text-sec);margin-top:2px;"></div>
-      <button id="week-nav-today" class="btn btn-secondary hidden" onclick="goToCurrentWeek()" style="margin-top:6px;padding:3px 10px;font-size:11px;">↩ Back to current week</button>
+  <div id="week-navigator" class="week-navigator hidden">
+    <button class="btn btn-secondary week-nav-btn" id="week-nav-prev" onclick="navigateWeek(-1)">&#8592; Prev</button>
+    <div class="week-nav-center">
+      <div id="week-nav-label" class="week-nav-label"></div>
+      <div id="week-nav-dates" class="week-nav-dates"></div>
+      <button id="week-nav-today" class="btn btn-secondary week-nav-today hidden" onclick="goToCurrentWeek()">↩ Back to current week</button>
     </div>
-    <button class="btn btn-secondary" id="week-nav-next" onclick="navigateWeek(1)" style="padding:6px 14px;font-size:13px;">Next &#8594;</button>
+    <button class="btn btn-secondary week-nav-btn" id="week-nav-next" onclick="navigateWeek(1)">Next &#8594;</button>
   </div>
 
   <!-- Next week prompt (shown when current week has ended) -->

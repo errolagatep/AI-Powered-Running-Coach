@@ -23,7 +23,8 @@ function logout() {
 
 function formatPace(paceDecimal) {
   const min = Math.floor(paceDecimal);
-  const sec = Math.round((paceDecimal - min) * 60);
+  let sec = Math.round((paceDecimal - min) * 60);
+  if (sec >= 60) { return `${min + 1}:00`; }
   return `${min}:${String(sec).padStart(2, "0")}`;
 }
 
@@ -52,10 +53,12 @@ function escapeHtml(str) {
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#x27;");
 }
 
 function effortClass(effort) {
+  if (effort == null || isNaN(effort)) return "effort-easy";
   if (effort <= 4) return "effort-easy";
   if (effort <= 7) return "effort-mod";
   return "effort-hard";
