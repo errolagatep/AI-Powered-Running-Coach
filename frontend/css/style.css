@@ -2612,6 +2612,18 @@ span.flatpickr-weekday {
 /* Modal width override for quick log */
 .qlm-card { max-width: 480px; }
 
+/* On mobile, anchor quick-log and feedback modals to the bottom */
+@media (max-width: 600px) {
+  .modal-backdrop {
+    align-items: flex-end;
+    padding: 0;
+  }
+  .modal-card {
+    border-radius: 20px 20px 0 0;
+    max-height: 92vh;
+  }
+}
+
 /* Stats page tabs ──────────────────────────────────────────────────────────── */
 .stats-tabs {
   display: flex;

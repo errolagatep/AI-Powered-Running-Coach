@@ -57,6 +57,16 @@
           <small>Calculated pace</small>
         </div>
 
+        <div class="form-group">
+          <label for="qlm-notes">Notes <span style="opacity:.5">optional</span></label>
+          <textarea class="form-control" id="qlm-notes" rows="2" placeholder="How did it feel? Hills, intervals, weather…" style="resize:vertical;"></textarea>
+        </div>
+
+        <div class="form-group">
+          <label for="qlm-coach-note">Note to your coach <span style="opacity:.5">optional</span></label>
+          <textarea class="form-control" id="qlm-coach-note" rows="2" placeholder="Anything for the coach before feedback — e.g. "I was dehydrated", "slept 4 hrs", "ran at altitude"…" style="resize:vertical;"></textarea>
+        </div>
+
         <div class="form-row" style="margin-top:4px;">
           <div class="form-group">
             <label for="qlm-hr">Avg Heart Rate <span style="opacity:.5">optional</span></label>
@@ -71,11 +81,6 @@
               <span style="font-size:12px;color:var(--text-sec);">Max</span>
             </div>
           </div>
-        </div>
-
-        <div class="form-group">
-          <label for="qlm-notes">Notes <span style="opacity:.5">optional</span></label>
-          <textarea class="form-control" id="qlm-notes" rows="2" placeholder="How did it feel? Hills, intervals, weather…" style="resize:vertical;"></textarea>
         </div>
       </div>
 
@@ -183,9 +188,10 @@
     if (!dist || dist <= 0) { _qlmAlert("Distance must be greater than 0"); return; }
     if (total <= 0)          { _qlmAlert("Duration must be greater than 0"); return; }
 
-    const hr    = document.getElementById("qlm-hr").value;
-    const date  = document.getElementById("qlm-date").value;
-    const notes = document.getElementById("qlm-notes").value.trim();
+    const hr         = document.getElementById("qlm-hr").value;
+    const date       = document.getElementById("qlm-date").value;
+    const notes      = document.getElementById("qlm-notes").value.trim();
+    const coachNote  = document.getElementById("qlm-coach-note").value.trim();
 
     const body = {
       date: date + "T12:00:00",
@@ -193,9 +199,12 @@
       duration_min: total,
       effort_level: parseInt(document.getElementById("qlm-effort").value),
     };
-    if (hr)    body.heart_rate_avg = parseInt(hr);
-    if (notes) body.notes = notes;
+    if (hr)         body.heart_rate_avg = parseInt(hr);
+    if (notes)      body.notes = notes;
+    if (coachNote)  body.coach_note = coachNote;
 
+    const submitBtn = document.getElementById("qlm-submit-btn");
+    submitBtn.disabled = true;
     _qlmShowView("loading");
 
     try {
@@ -203,6 +212,7 @@
       _qlmShowFeedback(run);
     } catch (err) {
       _qlmShowView("form");
+      submitBtn.disabled = false;
       _qlmAlert(err.message || "Failed to save run. Please try again.");
     }
   };
@@ -253,7 +263,9 @@
     document.getElementById("qlm-hr").value       = "";
     document.getElementById("qlm-effort").value   = "5";
     document.getElementById("qlm-effort-display").textContent = "5";
-    document.getElementById("qlm-notes").value    = "";
+    document.getElementById("qlm-notes").value           = "";
+    document.getElementById("qlm-coach-note").value      = "";
+    document.getElementById("qlm-submit-btn").disabled   = false;
     document.getElementById("qlm-pace-preview").classList.add("hidden");
     document.getElementById("qlm-alert").classList.add("hidden");
     document.getElementById("qlm-plan-adjusted").classList.add("hidden");

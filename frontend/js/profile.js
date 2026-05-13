@@ -338,7 +338,6 @@ async function generatePredictions() {
     const el = document.getElementById("predictions-error");
     el.textContent = err.message || "Failed to generate predictions. Please try again.";
     el.classList.remove("hidden");
-    document.getElementById("predictions-empty").classList.remove("hidden");
   } finally {
     btn.disabled = false;
     btn.textContent = "Regenerate";
