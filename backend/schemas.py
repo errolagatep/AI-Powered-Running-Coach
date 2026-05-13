@@ -101,6 +101,7 @@ class RunResponse(BaseModel):
     heart_rate_avg: Optional[int] = None
     effort_level: int
     notes: Optional[str] = None
+    coach_note: Optional[str] = None
     ai_feedback: Optional[str] = None
     created_at: datetime
     strava_activity_id: Optional[int] = None

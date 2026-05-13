@@ -217,3 +217,19 @@ ALTER TABLE strava_tokens ADD COLUMN IF NOT EXISTS last_synced_at TIMESTAMPTZ;
 CREATE INDEX IF NOT EXISTS idx_run_logs_strava_id
     ON run_logs (user_id, strava_activity_id)
     WHERE strava_activity_id IS NOT NULL;
+
+-- ── AI Memory improvements ────────────────────────────────────────────────────
+
+-- Separate coach_note from run notes (pre-feedback context message, not a log entry)
+ALTER TABLE run_logs ADD COLUMN IF NOT EXISTS coach_note TEXT;
+
+-- Rolling athlete summary (one row per user, upserted after every 3 runs)
+-- Prepended to every coaching prompt to give Claude longitudinal context.
+CREATE TABLE IF NOT EXISTS athlete_summaries (
+    user_id      UUID        NOT NULL PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    summary      TEXT        NOT NULL,
+    run_count    INTEGER     DEFAULT 0,
+    generated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE athlete_summaries ENABLE ROW LEVEL SECURITY;

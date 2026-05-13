@@ -195,6 +195,77 @@ def _extract_json_block(text: str) -> str:
     return text
 
 
+def generate_athlete_summary(
+    recent_runs: list,
+    assessment: Optional[dict] = None,
+    user_profile: Optional[dict] = None,
+    existing_summary: Optional[str] = None,
+) -> str:
+    """Generate or refresh a 200–350 word rolling athlete summary.
+
+    This is stored in athlete_summaries and prepended to every coaching prompt
+    so Claude has longitudinal context without re-reading raw metrics each time.
+    """
+    context = ""
+
+    if user_profile:
+        parts = []
+        if user_profile.get("name"):  parts.append(f"Name: {user_profile['name']}")
+        if user_profile.get("age"):   parts.append(f"Age: {user_profile['age']}")
+        if user_profile.get("weight_kg"): parts.append(f"Weight: {user_profile['weight_kg']} kg")
+        if user_profile.get("max_hr"):    parts.append(f"Max HR: {user_profile['max_hr']} bpm")
+        if parts:
+            context += "Athlete: " + ", ".join(parts) + "\n"
+
+    if assessment:
+        context += _assessment_context(assessment) + "\n"
+
+    if recent_runs:
+        context += f"\nLast {min(len(recent_runs), 20)} runs (newest first):\n"
+        for r in recent_runs[:20]:
+            line = _run_to_context_line(r)
+            if r.get("notes"):
+                line += f" | Notes: {str(r['notes'])[:120]}"
+            if r.get("coach_note"):
+                line += f" | Pre-run note: {str(r['coach_note'])[:80]}"
+            if r.get("ai_feedback"):
+                line += f" | Feedback: {str(r['ai_feedback'])[:180]}"
+            context += line + "\n"
+
+    prior = ""
+    if existing_summary:
+        prior = (
+            f"\nPrevious summary (update where facts have changed; keep what's still accurate):\n"
+            f"{existing_summary}\n"
+        )
+
+    prompt = (
+        f"{context}{prior}\n"
+        "Write a concise 200–350 word athlete summary for use by an AI running coach. "
+        "Cover:\n"
+        "1. Current fitness level and weekly training volume\n"
+        "2. Observed patterns — pacing discipline, effort control, consistency, "
+        "any tendency to push easy runs too hard\n"
+        "3. Injury signals, health notes, or medications mentioned\n"
+        "4. What is working well and what to monitor\n"
+        "5. Current goal and training phase context\n\n"
+        "Write in third person (e.g. 'The athlete...'). Be specific with numbers. "
+        "Flowing prose only — no bullet points, no headings. "
+        "This text will be prepended to every coaching prompt."
+    )
+
+    response = get_client().messages.create(
+        model="claude-opus-4-6",
+        max_tokens=600,
+        system=COACH_SYSTEM_PROMPT,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    for block in response.content:
+        if block.type == "text":
+            return block.text.strip()
+    return ""
+
+
 def get_onboarding_followup(assessment: dict) -> Optional[str]:
     """Ask Claude if the runner assessment needs one clarifying question."""
     prompt = f"""A new runner just completed their onboarding assessment:
@@ -448,6 +519,7 @@ def generate_run_feedback(
     planned_workout: Optional[dict] = None,
     personal_bests: Optional[dict] = None,
     coach_note: Optional[str] = None,
+    athlete_summary: Optional[str] = None,
 ) -> str:
     """Generate AI coaching feedback for a completed run."""
     # Determine workout type context
@@ -479,7 +551,11 @@ def generate_run_feedback(
     has_lap_data = any(kw in notes.lower() for kw in ["lap", "split", "rep", "x ", "400", "800", "1km"])
     coach_note_ctx = f"\n- Athlete note to coach: {coach_note}" if coach_note and coach_note.strip() else ""
 
-    parts = [f"""## Current Run
+    parts = []
+    if athlete_summary and athlete_summary.strip():
+        parts.append(f"## Athlete Background\n{athlete_summary.strip()}")
+
+    parts.append(f"""## Current Run
 - Date: {str(run.get("date", ""))[:10]}
 - Workout Type: {workout_type}
 - Distance: {run["distance_km"]:.2f} km
@@ -487,7 +563,7 @@ def generate_run_feedback(
 - Pace: {_fmt_pace(run["pace_per_km"])} min/km
 - Heart Rate: {run.get("heart_rate_avg") or "Not recorded"} bpm
 - Effort Level: {run["effort_level"]}/10
-- Notes: {notes or "None"}{coach_note_ctx}"""]
+- Notes: {notes or "None"}{coach_note_ctx}""")
 
     parts.append(workout_ctx)
 
@@ -978,6 +1054,7 @@ def generate_weekly_plan(
     coach_notes: Optional[str] = None,
     personal_bests: Optional[dict] = None,
     week_context: Optional[dict] = None,
+    athlete_summary: Optional[str] = None,
 ) -> dict:
     """Generate a 7-day structured training plan as JSON."""
     total_km = sum(r["distance_km"] for r in recent_runs[-14:]) if recent_runs else 0
@@ -988,6 +1065,10 @@ def generate_weekly_plan(
     )
 
     context = f"Athlete: {user_name}\n"
+
+    if athlete_summary and athlete_summary.strip():
+        context += f"\n## Athlete Background\n{athlete_summary.strip()}\n"
+
     if assessment:
         context += _assessment_context(assessment) + "\n"
     context += f"Total km in last 2 weeks: {total_km:.1f} km\n"
@@ -997,6 +1078,19 @@ def generate_weekly_plan(
         context += "\nRecent training (last 4 weeks):\n"
         for r in sorted(recent_runs[-20:], key=lambda x: x.get("date", "")):
             context += _run_to_context_line(r) + "\n"
+
+        # Extract qualitative notes and feedback from recent runs
+        run_qual = []
+        for r in recent_runs[:7]:
+            date_s = str(r.get("date", ""))[:10]
+            if r.get("notes"):
+                run_qual.append(f"  {date_s} run notes: {str(r['notes'])[:200]}")
+            if r.get("coach_note"):
+                run_qual.append(f"  {date_s} pre-run note: {str(r['coach_note'])[:100]}")
+            if r.get("ai_feedback"):
+                run_qual.append(f"  {date_s} coaching feedback: {str(r['ai_feedback'])[:300]}")
+        if run_qual:
+            context += "\nRecent qualitative context:\n" + "\n".join(run_qual) + "\n"
     else:
         context += "\nNew athlete — no runs logged yet. Create a beginner-friendly base-building plan.\n"
 

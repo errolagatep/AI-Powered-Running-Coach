@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from supabase import Client
 from datetime import datetime, timedelta, date as date_type
+from typing import Optional
 import json
 from ..database import get_supabase
 from ..auth import get_current_user
@@ -33,6 +34,32 @@ def _latest_goal_for_user(user_id: str, supabase: Client) -> dict | None:
         "goal_type":        g.get("goal_type"),
         "goal_description": g.get("goal_description"),
     }
+
+
+def _fetch_athlete_summary(user_id: str, supabase: Client) -> Optional[str]:
+    """Return the stored rolling athlete summary, or None if not yet generated."""
+    result = (
+        supabase.table("athlete_summaries")
+        .select("summary")
+        .eq("user_id", user_id)
+        .execute()
+    )
+    return result.data[0]["summary"] if result.data else None
+
+
+def _build_feedback_coach_notes(recent_runs: list) -> Optional[str]:
+    """Extract AI feedback from recent runs to enrich plan generation context."""
+    feedback_runs = [r for r in recent_runs if r.get("ai_feedback")]
+    if not feedback_runs:
+        return None
+    lines = ["Coaching observations from recent logged runs (use these to shape the plan):\n"]
+    for r in feedback_runs[:5]:
+        date_str = str(r.get("date", ""))[:10]
+        lines.append(
+            f"— {date_str}: {r['distance_km']:.1f} km @ {_fmt_pace(r['pace_per_km'])}/km, "
+            f"effort {r['effort_level']}/10\n  Feedback: {r['ai_feedback'][:400]}\n"
+        )
+    return "\n".join(lines)
 
 
 @router.get("/current")
@@ -197,7 +224,7 @@ def create_plan(
 ):
     recent_result = (
         supabase.table("run_logs")
-        .select("date,distance_km,duration_min,pace_per_km,heart_rate_avg,effort_level")
+        .select("date,distance_km,duration_min,pace_per_km,heart_rate_avg,effort_level,notes,coach_note,ai_feedback")
         .eq("user_id", current_user["id"])
         .order("date", desc=True)
         .limit(28)
@@ -215,6 +242,8 @@ def create_plan(
     assessment = assessment_result.data[0] if assessment_result.data else None
 
     personal_bests = _compute_personal_bests(current_user["id"], supabase)
+    athlete_summary = _fetch_athlete_summary(current_user["id"], supabase)
+    coach_notes = _build_feedback_coach_notes(recent_result.data)
 
     plan_data = generate_weekly_plan(
         recent_runs=recent_result.data,
@@ -222,6 +251,8 @@ def create_plan(
         user_name=current_user["name"],
         assessment=assessment,
         personal_bests=personal_bests,
+        coach_notes=coach_notes,
+        athlete_summary=athlete_summary,
     )
 
     result = supabase.table("training_plans").insert({
@@ -582,7 +613,7 @@ def generate_next_week(
     # Fetch inputs for plan generation
     recent_result = (
         supabase.table("run_logs")
-        .select("date,distance_km,duration_min,pace_per_km,heart_rate_avg,effort_level")
+        .select("date,distance_km,duration_min,pace_per_km,heart_rate_avg,effort_level,notes,coach_note,ai_feedback")
         .eq("user_id", current_user["id"])
         .order("date", desc=True)
         .limit(28)
@@ -598,6 +629,8 @@ def generate_next_week(
     )
     assessment = assessment_result.data[0] if assessment_result.data else None
     personal_bests = _compute_personal_bests(current_user["id"], supabase)
+    athlete_summary = _fetch_athlete_summary(current_user["id"], supabase)
+    coach_notes = _build_feedback_coach_notes(recent_result.data)
 
     # Add total_weeks into the week_context
     week_ctx = dict(skeleton_week)
@@ -610,6 +643,8 @@ def generate_next_week(
         assessment=assessment,
         personal_bests=personal_bests,
         week_context=week_ctx,
+        coach_notes=coach_notes,
+        athlete_summary=athlete_summary,
     )
 
     insert_result = supabase.table("training_plans").insert({
@@ -744,26 +779,14 @@ def recalibrate_plan(
     """Regenerate the training plan, explicitly using AI feedback from recent runs."""
     recent_result = (
         supabase.table("run_logs")
-        .select("date,distance_km,duration_min,pace_per_km,heart_rate_avg,effort_level,ai_feedback")
+        .select("date,distance_km,duration_min,pace_per_km,heart_rate_avg,effort_level,notes,coach_note,ai_feedback")
         .eq("user_id", current_user["id"])
         .order("date", desc=True)
         .limit(10)
         .execute()
     )
 
-    # Build coach notes from runs that have AI feedback
-    feedback_runs = [r for r in recent_result.data if r.get("ai_feedback")]
-    coach_notes = ""
-    if feedback_runs:
-        lines = ["Coaching observations from recent logged runs (use these to shape the plan):\n"]
-        for r in feedback_runs[:5]:
-            date_str = str(r["date"])[:10]
-            lines.append(
-                f"— {date_str}: {r['distance_km']:.1f} km @ {_fmt_pace(r['pace_per_km'])}/km, "
-                f"effort {r['effort_level']}/10\n  Feedback: {r['ai_feedback'][:400]}\n"
-            )
-        coach_notes = "\n".join(lines)
-
+    coach_notes = _build_feedback_coach_notes(recent_result.data)
     goal = _latest_goal_for_user(current_user["id"], supabase)
 
     assessment_result = (
@@ -774,21 +797,17 @@ def recalibrate_plan(
     )
     assessment = assessment_result.data[0] if assessment_result.data else None
 
-    # Use only run data columns that generate_weekly_plan expects
-    recent_runs = [
-        {k: r[k] for k in ("date", "distance_km", "duration_min", "pace_per_km", "heart_rate_avg", "effort_level")}
-        for r in recent_result.data
-    ]
-
     personal_bests = _compute_personal_bests(current_user["id"], supabase)
+    athlete_summary = _fetch_athlete_summary(current_user["id"], supabase)
 
     plan_data = generate_weekly_plan(
-        recent_runs=recent_runs,
+        recent_runs=recent_result.data,
         goal=goal,
         user_name=current_user["name"],
         assessment=assessment,
-        coach_notes=coach_notes or None,
+        coach_notes=coach_notes,
         personal_bests=personal_bests,
+        athlete_summary=athlete_summary,
     )
 
     result = supabase.table("training_plans").insert({
