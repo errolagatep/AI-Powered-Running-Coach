@@ -1,16 +1,19 @@
 import logging
 import math
 from datetime import date, datetime, timedelta, timezone
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from supabase import Client
-from typing import List
+from typing import List, Optional
 
 logger = logging.getLogger(__name__)
 from ..database import get_supabase
 from ..schemas import RunCreate, RunUpdate, RunResponse, RegenerateRequest
 from ..auth import get_current_user
 import json
-from ..coach import generate_run_feedback, should_adjust_plan, generate_weekly_plan, adjust_upcoming_workouts
+from ..coach import (
+    generate_run_feedback, should_adjust_plan, generate_weekly_plan,
+    adjust_upcoming_workouts, generate_athlete_summary,
+)
 
 router = APIRouter(prefix="/api/runs", tags=["runs"])
 
@@ -256,6 +259,77 @@ def _compute_personal_bests(user_id: str, supabase: Client) -> dict:
     return bests
 
 
+def _fetch_athlete_summary(user_id: str, supabase: Client) -> Optional[str]:
+    """Return the stored rolling athlete summary, or None if not yet generated."""
+    result = (
+        supabase.table("athlete_summaries")
+        .select("summary")
+        .eq("user_id", user_id)
+        .execute()
+    )
+    return result.data[0]["summary"] if result.data else None
+
+
+def _maybe_refresh_athlete_summary(user_id: str) -> None:
+    """Regenerate the rolling athlete summary every 3 new runs (called as a background task)."""
+    supabase = get_supabase()
+    try:
+        count_result = (
+            supabase.table("run_logs")
+            .select("id", count="exact")
+            .eq("user_id", user_id)
+            .execute()
+        )
+        total_runs = count_result.count or 0
+
+        summary_result = (
+            supabase.table("athlete_summaries")
+            .select("summary,run_count")
+            .eq("user_id", user_id)
+            .execute()
+        )
+        last_count = summary_result.data[0]["run_count"] if summary_result.data else 0
+        existing_summary = summary_result.data[0]["summary"] if summary_result.data else None
+
+        if total_runs - last_count < 3:
+            return
+
+        recent_runs = (
+            supabase.table("run_logs")
+            .select("date,distance_km,duration_min,pace_per_km,heart_rate_avg,effort_level,notes,coach_note,ai_feedback")
+            .eq("user_id", user_id)
+            .order("date", desc=True)
+            .limit(20)
+            .execute()
+            .data
+        )
+        user_result = supabase.table("users").select("name,age,weight_kg,max_hr,height_cm").eq("id", user_id).execute()
+        user_profile = user_result.data[0] if user_result.data else None
+
+        assessment_result = (
+            supabase.table("runner_assessments")
+            .select("*")
+            .eq("user_id", user_id)
+            .execute()
+        )
+        assessment = assessment_result.data[0] if assessment_result.data else None
+
+        new_summary = generate_athlete_summary(
+            recent_runs=recent_runs,
+            assessment=assessment,
+            user_profile=user_profile,
+            existing_summary=existing_summary,
+        )
+        supabase.table("athlete_summaries").upsert({
+            "user_id": user_id,
+            "summary": new_summary,
+            "run_count": total_runs,
+            "generated_at": datetime.utcnow().isoformat(),
+        }, on_conflict="user_id").execute()
+    except Exception as e:
+        logger.warning("Athlete summary refresh failed for user %s: %s", user_id, e)
+
+
 def _get_planned_workout_for_date(user_id: str, run_date: datetime, supabase: Client):
     """Look up the training plan and return the scheduled workout for the run's day of week."""
     DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
@@ -420,6 +494,7 @@ def _process_gamification(user_id: str, run: dict, supabase: Client) -> list:
 @router.post("/", response_model=RunResponse)
 def log_run(
     data: RunCreate,
+    background_tasks: BackgroundTasks,
     current_user: dict = Depends(get_current_user),
     supabase: Client = Depends(get_supabase),
 ):
@@ -441,13 +516,14 @@ def log_run(
         "heart_rate_avg": data.heart_rate_avg,
         "effort_level": data.effort_level,
         "notes": data.notes,
+        "coach_note": data.coach_note,
     }).execute()
 
     run = result.data[0]
 
     recent = (
         supabase.table("run_logs")
-        .select("date,distance_km,duration_min,pace_per_km,heart_rate_avg,effort_level,notes")
+        .select("date,distance_km,duration_min,pace_per_km,heart_rate_avg,effort_level,notes,coach_note,ai_feedback")
         .eq("user_id", current_user["id"])
         .neq("id", run["id"])
         .order("date", desc=True)
@@ -458,6 +534,7 @@ def log_run(
     assessment = _get_assessment(current_user["id"], supabase)
     planned_workout = _get_planned_workout_for_date(current_user["id"], data.date, supabase)
     personal_bests = _compute_personal_bests(current_user["id"], supabase)
+    athlete_summary = _fetch_athlete_summary(current_user["id"], supabase)
 
     feedback = generate_run_feedback(
         run=run,
@@ -473,6 +550,7 @@ def log_run(
         planned_workout=planned_workout,
         personal_bests=personal_bests,
         coach_note=data.coach_note,
+        athlete_summary=athlete_summary,
     )
 
     updated = supabase.table("run_logs").update({"ai_feedback": feedback}).eq("id", run["id"]).execute()
@@ -546,6 +624,8 @@ def log_run(
     except Exception as _adj_err:
         logger.warning("Plan adjustment failed for user %s: %s", current_user["id"], _adj_err, exc_info=True)
 
+    background_tasks.add_task(_maybe_refresh_athlete_summary, current_user["id"])
+
     response_data = {
         **saved_run,
         "new_achievements": new_achievements,
@@ -595,6 +675,7 @@ def get_run(
 def regenerate_feedback(
     run_id: str,
     body: RegenerateRequest = RegenerateRequest(),
+    background_tasks: BackgroundTasks = None,
     current_user: dict = Depends(get_current_user),
     supabase: Client = Depends(get_supabase),
 ):
@@ -610,14 +691,12 @@ def regenerate_feedback(
     run = run_result.data[0]
 
     if body.coach_note and body.coach_note.strip():
-        existing_notes = run.get("notes") or ""
-        combined_notes = (existing_notes + "\n" + body.coach_note.strip()).strip() if existing_notes else body.coach_note.strip()
-        supabase.table("run_logs").update({"notes": combined_notes}).eq("id", run_id).execute()
-        run = {**run, "notes": combined_notes}
+        supabase.table("run_logs").update({"coach_note": body.coach_note.strip()}).eq("id", run_id).execute()
+        run = {**run, "coach_note": body.coach_note.strip()}
 
     recent = (
         supabase.table("run_logs")
-        .select("date,distance_km,duration_min,pace_per_km,heart_rate_avg,effort_level,notes")
+        .select("date,distance_km,duration_min,pace_per_km,heart_rate_avg,effort_level,notes,coach_note,ai_feedback")
         .eq("user_id", current_user["id"])
         .neq("id", run_id)
         .order("date", desc=True)
@@ -629,6 +708,7 @@ def regenerate_feedback(
     run_date = datetime.fromisoformat(str(run["date"]).replace("Z", "").split(".")[0])
     planned_workout = _get_planned_workout_for_date(current_user["id"], run_date, supabase)
     personal_bests = _compute_personal_bests(current_user["id"], supabase)
+    athlete_summary = _fetch_athlete_summary(current_user["id"], supabase)
 
     feedback = generate_run_feedback(
         run=run,
@@ -644,9 +724,14 @@ def regenerate_feedback(
         planned_workout=planned_workout,
         personal_bests=personal_bests,
         coach_note=body.coach_note,
+        athlete_summary=athlete_summary,
     )
 
     updated = supabase.table("run_logs").update({"ai_feedback": feedback}).eq("id", run_id).execute()
+
+    if background_tasks:
+        background_tasks.add_task(_maybe_refresh_athlete_summary, current_user["id"])
+
     return RunResponse.model_validate(updated.data[0])
 
 
