@@ -473,14 +473,21 @@ function workoutCard(day, run) {
     ? `<span class="workout-variation-badge">${Icons.shuffle} Varied</span>`
     : "";
 
-  // Footer buttons: reschedule always shown for incomplete days in current week; hidden for past weeks
+  // Footer buttons
   let footerHtml = "";
-  if (!run && currentPlanId && !_isPastWeekView) {
-    const rescheduleBtn = `<button class="btn-reschedule" onclick="event.stopPropagation();openRescheduleModal('${day.day}')">${Icons.calendar} Reschedule</button>`;
-    const varyBtn = !isRest
+  if (!_isPastWeekView && currentPlanId) {
+    const rescheduleBtn = !run
+      ? `<button class="btn-reschedule" onclick="event.stopPropagation();openRescheduleModal('${day.day}')">${Icons.calendar} Reschedule</button>`
+      : "";
+    const varyBtn = !isRest && !run
       ? `<button class="btn-vary" onclick="event.stopPropagation();varyWorkout('${day.day}')">${Icons.shuffle} Vary workout</button>`
       : "";
-    footerHtml = `<div class="workout-card-footer">${rescheduleBtn}${varyBtn}</div>`;
+    const garminBtn = !isRest
+      ? `<button class="btn-garmin" onclick="event.stopPropagation();downloadGarminFit('${day.day}')" title="Download for Garmin">⌚ Garmin</button>`
+      : "";
+    if (rescheduleBtn || varyBtn || garminBtn) {
+      footerHtml = `<div class="workout-card-footer">${rescheduleBtn}${varyBtn}${garminBtn}</div>`;
+    }
   }
 
   const clickAttr = run ? `onclick="openRunDetailById('${run.id}')"` : "";
@@ -1192,6 +1199,36 @@ async function loadWeekByNumber(weekNum) {
     alertEl.classList.remove("hidden");
   } finally {
     document.getElementById("plan-loading").classList.add("hidden");
+  }
+}
+
+async function downloadGarminFit(dayName) {
+  try {
+    const token = localStorage.getItem("token");
+    const qs    = dayName ? `?day=${encodeURIComponent(dayName)}` : "";
+    const resp  = await fetch(`/api/plans/garmin-fit${qs}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!resp.ok) {
+      const body = await resp.json().catch(() => ({}));
+      alert(body.detail || "Could not generate workout file.");
+      return;
+    }
+    const blob = await resp.blob();
+    const cd   = resp.headers.get("Content-Disposition") || "";
+    const m    = cd.match(/filename="?([^"]+)"?/);
+    const filename = m ? m[1] : `workout_${dayName || "today"}.fit`;
+
+    const a = document.createElement("a");
+    a.href  = URL.createObjectURL(blob);
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(a.href);
+  } catch (err) {
+    alert("Download failed. Please try again.");
+    console.error(err);
   }
 }
 

@@ -710,6 +710,71 @@ def get_plan_by_week(
     }
 
 
+@router.get("/garmin-fit")
+def download_garmin_fit(
+    day: str | None = Query(None, description="Day name e.g. Monday. Defaults to today."),
+    current_user: dict = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase),
+):
+    """Generate a Garmin FIT structured workout file for a scheduled day.
+
+    Returns a .fit binary file the user can import into Garmin Connect.
+    """
+    import re as _re
+    from fastapi.responses import Response
+    from ..fit_generator import build_fit_workout
+
+    _DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+
+    # Determine target day
+    today = date_type.today()
+    if day and day in _DAY_NAMES:
+        target_day_name = day
+        # Find the date of that weekday in the current week (Mon-based)
+        today_idx    = today.weekday()  # 0=Mon
+        target_idx   = _DAY_NAMES.index(day)
+        target_date  = today + timedelta(days=target_idx - today_idx)
+    else:
+        target_day_name = _DAY_NAMES[today.weekday()]
+        target_date     = today
+
+    # Look up the most recent training plan and find this day's workout
+    plan_result = (
+        supabase.table("training_plans")
+        .select("plan_json,week_start")
+        .eq("user_id", current_user["id"])
+        .order("generated_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    if not plan_result.data:
+        raise HTTPException(status_code=404, detail="No training plan found. Generate a plan first.")
+
+    try:
+        plan_data = json.loads(plan_result.data[0]["plan_json"])
+        days = plan_data.get("days", [])
+    except Exception:
+        raise HTTPException(status_code=500, detail="Could not parse training plan.")
+
+    workout = next((d for d in days if d.get("day") == target_day_name), None)
+    if not workout:
+        raise HTTPException(status_code=404, detail=f"No workout found for {target_day_name}.")
+
+    if workout.get("workout_type") == "Rest":
+        raise HTTPException(status_code=400, detail="No FIT file for rest days.")
+
+    fit_bytes = build_fit_workout(workout)
+
+    safe_title = _re.sub(r"[^a-zA-Z0-9_-]", "_", workout.get("title", "Workout"))[:40]
+    filename   = f"{target_date.isoformat()}_{safe_title}.fit"
+
+    return Response(
+        content=fit_bytes,
+        media_type="application/octet-stream",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 def _current_monday() -> datetime:
     """Returns the Monday of the current UTC week (today if today is Monday).
     Prefer _resolve_week_start(local_monday) when a local date is available from the client.
