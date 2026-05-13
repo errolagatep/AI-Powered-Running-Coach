@@ -347,43 +347,12 @@ function renderTodayWorkout(planData) {
                onclick="openLogModal({distance_km:${workout.distance_km || ''}})">
                + Log this run
              </button>
-             <button class="btn btn-secondary" style="font-size:13px;padding:7px 14px;"
-               onclick="_downloadTodayFit()" title="Download for Garmin">
-               ⌚ Garmin FIT
-             </button>
              <a href="/training_plan.html" class="today-workout-link" style="margin:0;">View full week →</a>
            </div>`
         : `<a href="/training_plan.html" class="today-workout-link">View full week →</a>`
       }
     </div>`;
   el.classList.remove("hidden");
-}
-
-async function _downloadTodayFit() {
-  try {
-    const token = localStorage.getItem("token");
-    const resp  = await fetch("/api/plans/garmin-fit", {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
-    if (!resp.ok) {
-      const body = await resp.json().catch(() => ({}));
-      alert(body.detail || "Could not generate workout file.");
-      return;
-    }
-    const blob = await resp.blob();
-    const cd   = resp.headers.get("Content-Disposition") || "";
-    const m    = cd.match(/filename="?([^"]+)"?/);
-    const filename = m ? m[1] : "workout_today.fit";
-    const a = document.createElement("a");
-    a.href  = URL.createObjectURL(blob);
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(a.href);
-  } catch (err) {
-    alert("Download failed. Please try again.");
-  }
 }
 
 function renderCoachingInsights(runs) {
