@@ -52,7 +52,7 @@
           </button>
           <div class="plan-overflow-dropdown" id="plan-overflow-dropdown">
             <button class="plan-overflow-item" id="overflow-recalibrate" onclick="closePlanOverflow();openRecalibrateModal();"><i data-lucide="refresh-cw" class="icon"></i> Recalibrate this week</button>
-            <button class="plan-overflow-item" id="overflow-program"    onclick="closePlanOverflow();openProgramModal();"><i data-lucide="calendar" class="icon"></i> Rebuild program</button>
+            <button class="plan-overflow-item plan-overflow-item-danger" id="overflow-program" onclick="closePlanOverflow();openProgramModal();"><i data-lucide="calendar" class="icon"></i> Start new program</button>
           </div>
         </div>
       </div>
@@ -81,7 +81,7 @@
       <div id="goal-section">
         <div id="goal-display" class="hidden">
           <div id="goal-info" style="margin-bottom:12px;color:var(--text-sec);font-size:14px;"></div>
-          <button class="btn btn-danger" style="font-size:12px;padding:6px 12px;" onclick="deleteGoal()">Remove Goal</button>
+          <button class="btn btn-secondary" style="font-size:12px;padding:6px 12px;" onclick="showGoalForm()">Change goal</button>
         </div>
         <div id="goal-form">
           <!-- Goal category tabs -->
@@ -131,7 +131,10 @@
             </div>
           </div>
 
-          <button class="btn btn-primary btn-full" onclick="saveGoal()">Set Goal</button>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-primary" style="flex:1;" onclick="saveGoal()">Set Goal</button>
+            <button class="btn btn-secondary" id="goal-cancel-btn" style="display:none;" onclick="cancelGoalEdit()">Cancel</button>
+          </div>
         </div>
       </div>
     </div>
@@ -226,8 +229,9 @@
         Takbo Coach will review the feedback from your recent logged runs and rebuild this week's plan around your <strong>actual efforts, paces, and recovery patterns</strong> — not just your profile.
       </p>
       <p style="font-size:13px;color:var(--text-sec);line-height:1.6;">
-        This will replace your current plan. Any sessions you haven't completed yet will be restructured to better match where you are right now.
+        Any sessions you haven't completed yet will be restructured to better match where you are right now.
       </p>
+      <div id="recalibrate-days-note" class="hidden" style="margin-top:10px;padding:10px 12px;background:var(--bg-card-alt,rgba(0,0,0,.04));border-radius:8px;font-size:13px;color:var(--text-sec);line-height:1.5;"></div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeRecalibrateModal()">Cancel</button>
