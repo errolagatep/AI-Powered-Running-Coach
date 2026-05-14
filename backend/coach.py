@@ -792,6 +792,7 @@ def predict_race_times(
     assessment: Optional[dict] = None,
     user_profile: Optional[dict] = None,
     manual_bests: Optional[dict] = None,
+    current_goal: Optional[dict] = None,
 ) -> dict:
     """Ask Claude to predict achievable race times based on training data."""
     if not run_logs:
@@ -841,6 +842,20 @@ def predict_race_times(
             )
         context += "\n".join(lines) + "\n"
 
+    if current_goal:
+        goal_lines = ["\n## Current Goal"]
+        if current_goal.get("goal_type"):
+            goal_lines.append(f"- Type: {current_goal['goal_type']}")
+        if current_goal.get("race_type"):
+            goal_lines.append(f"- Race: {current_goal['race_type']}")
+        if current_goal.get("race_date"):
+            goal_lines.append(f"- Race date: {str(current_goal['race_date'])[:10]}")
+        if current_goal.get("target_time_min"):
+            goal_lines.append(f"- Target time: {_fmt_time_min(current_goal['target_time_min'])}")
+        if current_goal.get("goal_description"):
+            goal_lines.append(f"- Description: {current_goal['goal_description']}")
+        context += "\n".join(goal_lines) + "\n"
+
     prediction_schema = {
         "type": "object",
         "properties": {
@@ -870,6 +885,8 @@ def predict_race_times(
                 f"{context}\n\n"
                 "Based on this athlete's training history, predict their ACHIEVABLE race times for each standard distance "
                 "— not current fitness, but a realistic target they could hit in the NEXT 3–6 months with consistent training.\n\n"
+                "IMPORTANT: Base predictions ONLY on the training data and current goal shown above. "
+                "Do NOT reference any past goals, old race dates, or historical targets mentioned in run notes or assessment history.\n\n"
                 "Use their best recent paces, volume, effort trends, and any reported personal bests to project times. "
                 "Be specific and realistic. For each distance include:\n"
                 "- time_min: predicted finish time in decimal minutes\n"

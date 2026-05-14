@@ -311,7 +311,7 @@ async function saveManualBests() {
   }
 }
 
-// ── AI Race Predictions ───────────────────────────────────────
+// ── Takbo Coach Race Prediction ───────────────────────────────────────
 
 async function loadPredictions() {
   try {

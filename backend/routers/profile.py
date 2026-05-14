@@ -269,7 +269,18 @@ def generate_predictions(
             "race_date": str(row["race_date"])[:10] if row.get("race_date") else None,
         }
 
-    result_data = coach_module.predict_race_times(run_logs, assessment, user_profile, manual_bests or None)
+    # Gather current active goal so predictions reference it (not stale assessment data)
+    goal_result = (
+        supabase.table("goals")
+        .select("race_type,race_date,target_time_min,goal_type,goal_description")
+        .eq("user_id", current_user["id"])
+        .order("race_date", desc=True)
+        .limit(1)
+        .execute()
+    )
+    current_goal = goal_result.data[0] if goal_result.data else None
+
+    result_data = coach_module.predict_race_times(run_logs, assessment, user_profile, manual_bests or None, current_goal)
     if not result_data:
         raise HTTPException(status_code=500, detail="Prediction generation failed. Please try again.")
 
