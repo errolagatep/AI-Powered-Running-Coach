@@ -401,8 +401,8 @@ function renderPlan(data) {
   // Summary
   const summaryEl = document.getElementById("plan-summary");
   summaryEl.innerHTML =
-    `<h3>${plan.focus || "Training Week"}</h3>
-     <p>${plan.week_summary || ""}</p>`;
+    `<h3>${escapeHtml(plan.focus || "Training Week")}</h3>
+     <p>${escapeHtml(plan.week_summary || "")}</p>`;
 
   // Days grid — match each plan day to a logged run this week
   const DAY_OFFSET = { Monday: 0, Tuesday: 1, Wednesday: 2, Thursday: 3, Friday: 4, Saturday: 5, Sunday: 6 };
