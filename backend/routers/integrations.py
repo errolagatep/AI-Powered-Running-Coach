@@ -25,10 +25,12 @@ STRAVA_WEBHOOK_VERIFY_TOKEN = os.getenv("STRAVA_WEBHOOK_VERIFY_TOKEN", "takbo_st
 # Sport types imported as running activities (Strava sport_type field)
 _RUN_SPORT_TYPES = {"Run", "TrailRun", "VirtualRun"}
 
-# Max pages per sync call (50 activities/page → up to 500 per sync)
-_MAX_PAGES = 10
-_PER_PAGE  = 50
-_HTTP_TIMEOUT = 15  # seconds
+# Max pages per incremental sync (50 activities/page → up to 500 per sync)
+_MAX_PAGES         = 10
+# Higher limit for initial full-history import (no after_ts set)
+_MAX_PAGES_INITIAL = 50
+_PER_PAGE          = 50
+_HTTP_TIMEOUT      = 15  # seconds
 
 
 # ── Strava OAuth ───────────────────────────────────────────────────────────────
@@ -39,7 +41,12 @@ def strava_auth_url(current_user: dict = Depends(get_current_user)):
     if not STRAVA_CLIENT_ID:
         raise HTTPException(status_code=501, detail="Strava integration is not configured")
 
-    state = create_access_token({"sub": current_user["id"], "purpose": "strava_connect"})
+    # Short-lived state token: OAuth flow should complete within minutes, not days
+    from datetime import timedelta as _td
+    state = create_access_token(
+        {"sub": current_user["id"], "purpose": "strava_connect"},
+        expires_delta=_td(minutes=15),
+    )
     params = urlencode({
         "client_id":       STRAVA_CLIENT_ID,
         "redirect_uri":    STRAVA_REDIRECT_URI,
@@ -213,20 +220,25 @@ def _activity_to_run_fields(activity: dict, user_id: str, max_hr: int | None) ->
     }
 
 
-def _fetch_strava_pages(access_token: str, after_ts: int | None) -> list[dict]:
+def _fetch_strava_pages(
+    access_token: str,
+    after_ts: int | None,
+    max_pages: int = _MAX_PAGES,
+) -> tuple[list[dict], bool]:
     """
-    Fetch all Strava running activities via pagination.
-    Stops after _MAX_PAGES or when a page returns fewer than _PER_PAGE results.
+    Fetch Strava running activities via pagination.
+    Returns (activities, cap_hit) where cap_hit=True means there may be more pages.
     Raises HTTPException on rate-limit (429) or other Strava errors.
     """
     all_activities = []
+    cap_hit = False
     params = {"per_page": _PER_PAGE}
     if after_ts:
         # 24-hour safety buffer so near-boundary runs aren't missed
         params["after"] = max(0, after_ts - 86400)
 
     with httpx.Client(timeout=_HTTP_TIMEOUT) as client:
-        for page in range(1, _MAX_PAGES + 1):
+        for page in range(1, max_pages + 1):
             params["page"] = page
             resp = client.get(
                 "https://www.strava.com/api/v3/athlete/activities",
@@ -258,8 +270,11 @@ def _fetch_strava_pages(access_token: str, after_ts: int | None) -> list[dict]:
 
             if len(page_activities) < _PER_PAGE:
                 break  # last page
+        else:
+            # Loop completed without a break — hit the page cap
+            cap_hit = True
 
-    return all_activities
+    return all_activities, cap_hit
 
 
 # ── Strava sync & status ───────────────────────────────────────────────────────
@@ -269,12 +284,12 @@ def strava_status(
     current_user: dict = Depends(get_current_user),
     supabase: Client = Depends(get_supabase),
 ):
-    result = supabase.table("strava_tokens").select("athlete_id,updated_at,last_synced_at").eq("user_id", current_user["id"]).execute()
+    result = supabase.table("strava_tokens").select("*").eq("user_id", current_user["id"]).execute()
     connected = bool(result.data)
     return {
         "connected":      connected,
-        "athlete_id":     result.data[0]["athlete_id"]      if connected else None,
-        "last_synced_at": result.data[0].get("last_synced_at") if connected else None,
+        "athlete_id":     result.data[0].get("athlete_id")      if connected else None,
+        "last_synced_at": result.data[0].get("last_synced_at")   if connected else None,
     }
 
 
@@ -309,8 +324,9 @@ def strava_sync(
         except (TypeError, ValueError):
             after_ts = None
 
-    # Fetch activities (paginated, rate-limit-aware)
-    all_activities = _fetch_strava_pages(access_token, after_ts)
+    # Initial sync (no prior timestamp) gets a higher page cap to import full history
+    pages_limit = _MAX_PAGES if after_ts else _MAX_PAGES_INITIAL
+    all_activities, sync_incomplete = _fetch_strava_pages(access_token, after_ts, pages_limit)
 
     max_hr = current_user.get("max_hr")
     run_activities = [
@@ -331,10 +347,11 @@ def strava_sync(
         if fields is None:
             continue  # invalid/incomplete activity
 
-        # Check for existing record
+        # Check for existing record — use select("*") so missing migration columns
+        # don't cause the deduplication query to fail
         dup = (
             supabase.table("run_logs")
-            .select("id,distance_km,duration_min,heart_rate_avg,elevation_gain")
+            .select("*")
             .eq("user_id", current_user["id"])
             .eq("strava_activity_id", strava_id)
             .execute()
@@ -368,12 +385,16 @@ def strava_sync(
         supabase.table("run_logs").insert(fields).execute()
         imported += 1
 
-    # Stamp last_synced_at so next call can do incremental sync
+    # Stamp last_synced_at so next call can do incremental sync.
+    # Non-fatal: if the column doesn't exist yet (migration pending), log and continue.
     now_iso = datetime.now(tz=timezone.utc).isoformat()
-    supabase.table("strava_tokens").update({
-        "last_synced_at": now_iso,
-        "updated_at":     now_iso,
-    }).eq("user_id", current_user["id"]).execute()
+    try:
+        supabase.table("strava_tokens").update({
+            "last_synced_at": now_iso,
+            "updated_at":     now_iso,
+        }).eq("user_id", current_user["id"]).execute()
+    except Exception as e:
+        logger.warning("Could not stamp last_synced_at (run migration?): %s", e)
 
     # Recalculate gamification — failures are logged but don't block the response
     joined_date = str(current_user.get("created_at", ""))[:10] or None
@@ -396,6 +417,7 @@ def strava_sync(
         "skipped":          skipped,
         "total_fetched":    len(run_activities),
         "new_achievements": new_achievements,
+        "sync_incomplete":  sync_incomplete,
     }
 
 

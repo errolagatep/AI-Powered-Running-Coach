@@ -150,16 +150,18 @@ async function uploadAvatar(input) {
 function renderNavbarAvatar(user) {
   const userEl = document.getElementById("navbar-user");
   if (!userEl) return;
-  const initials = (user.name || "?").trim().split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
+  const rawInitials = (user.name || "?").trim().split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
+  const initials = rawInitials.replace(/[^A-Z0-9]/g, "?");
+  const safeName = escapeHtml(user.name || "");
   if (user.avatar_url) {
     userEl.innerHTML = `<a href="/profile.html" class="navbar-user-link">
-      <img src="${user.avatar_url}" class="navbar-avatar" alt="${user.name}" />
-      <span class="navbar-user-name">${user.name}</span>
+      <img src="${escapeHtml(user.avatar_url)}" class="navbar-avatar" alt="${safeName}" />
+      <span class="navbar-user-name">${safeName}</span>
     </a>`;
   } else {
     userEl.innerHTML = `<a href="/profile.html" class="navbar-user-link">
       <div class="navbar-initials">${initials}</div>
-      <span class="navbar-user-name">${user.name}</span>
+      <span class="navbar-user-name">${safeName}</span>
     </a>`;
   }
 }
@@ -204,7 +206,9 @@ async function loadHealthInfo() {
     const data = await api.get("/profile/health");
     document.getElementById("p-injuries").value    = data.injury_history || "";
     document.getElementById("p-medications").value = data.medications    || "";
-  } catch (_) {}
+  } catch (err) {
+    showAlert("health-alert", err.message || "Failed to load health info.");
+  }
 }
 
 async function saveHealth() {
@@ -274,7 +278,9 @@ async function loadManualBests() {
         }
       }
     }
-  } catch (_) {}
+  } catch (err) {
+    showAlert("pb-alert", err.message || "Failed to load personal bests.");
+  }
 }
 
 async function saveManualBests() {
@@ -311,7 +317,7 @@ async function saveManualBests() {
   }
 }
 
-// ── AI Race Predictions ───────────────────────────────────────
+// ── Takbo Coach Race Prediction ───────────────────────────────────────
 
 async function loadPredictions() {
   try {
@@ -319,7 +325,10 @@ async function loadPredictions() {
     if (data.predictions) {
       renderPredictions(data.predictions, data.generated_at);
     }
-  } catch (_) {}
+  } catch (err) {
+    // Predictions are non-essential — log without alarming the user
+    console.error("Failed to load predictions:", err);
+  }
 }
 
 async function generatePredictions() {
@@ -368,7 +377,7 @@ function renderPredictions(data, generatedAt) {
         <div class="best-card-race">${race}</div>
         <div class="best-card-time">${timeStr}</div>
         <div class="best-card-confidence" style="color:${color};font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">${p.confidence} confidence</div>
-        <div class="best-card-note" style="font-size:11px;color:var(--text-sec);line-height:1.4;">${p.note || ""}</div>
+        <div class="best-card-note" style="font-size:11px;color:var(--text-sec);line-height:1.4;">${escapeHtml(p.note || "")}</div>
       </div>`;
   }).join("");
 

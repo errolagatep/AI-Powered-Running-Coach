@@ -67,16 +67,18 @@ function effortClass(effort) {
 function renderNavbarUser(user) {
   const userEl = document.getElementById("navbar-user");
   if (!userEl || !user) return;
-  const initials = (user.name || "?").trim().split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
+  const rawInitials = (user.name || "?").trim().split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
+  const initials = rawInitials.replace(/[^A-Z0-9]/g, "?");
+  const safeName = escapeHtml(user.name || "");
   if (user.avatar_url) {
     userEl.innerHTML = `<a href="/profile.html" class="navbar-user-link">
-      <img src="${user.avatar_url}" class="navbar-avatar" alt="${user.name}" />
-      <span class="navbar-user-name">${user.name}</span>
+      <img src="${escapeHtml(user.avatar_url)}" class="navbar-avatar" alt="${safeName}" />
+      <span class="navbar-user-name">${safeName}</span>
     </a>`;
   } else {
     userEl.innerHTML = `<a href="/profile.html" class="navbar-user-link">
       <div class="navbar-initials">${initials}</div>
-      <span class="navbar-user-name">${user.name}</span>
+      <span class="navbar-user-name">${safeName}</span>
     </a>`;
   }
 

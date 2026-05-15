@@ -21,7 +21,9 @@ async function initStravaStatus() {
     const data = await api.get("/integrations/strava/status");
     setStravaConnected(data.connected);
   } catch (e) {
-    // Integrations not available or not configured — hide section gracefully
+    // Show a non-blocking warning so the user knows the section is temporarily unavailable
+    const msg = document.getElementById("strava-status-msg");
+    if (msg) msg.textContent = "Strava status unavailable. Please try refreshing the page.";
   }
 }
 
@@ -60,6 +62,10 @@ async function stravaConnect() {
 }
 
 async function stravaSync() {
+  if (window._stravaIsSyncing) {
+    showStravaMessage("Sync already in progress — please wait.", "error");
+    return;
+  }
   const btn = document.getElementById("strava-sync-btn");
   btn.disabled = true;
   btn.textContent = "Syncing…";
@@ -68,7 +74,9 @@ async function stravaSync() {
     const parts = [`${data.imported} new run${data.imported !== 1 ? "s" : ""} imported`];
     if (data.updated > 0) parts.push(`${data.updated} updated`);
     parts.push(`${data.skipped} already up to date`);
-    showStravaMessage(`Sync complete: ${parts.join(", ")}.`, "success");
+    let msg = `Sync complete: ${parts.join(", ")}.`;
+    if (data.sync_incomplete) msg += " Your full history exceeds 2500 activities — sync again to import older runs.";
+    showStravaMessage(msg, "success");
     if (typeof loadRuns === "function") loadRuns();
     if (data.new_achievements?.length && typeof showAchievementToast === "function") {
       data.new_achievements.forEach((a, i) => {
