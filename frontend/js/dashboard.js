@@ -47,7 +47,13 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 });
 
+window._stravaIsSyncing = false;
+
 async function _silentStravaSync() {
+  window._stravaIsSyncing = true;
+  // Disable manual sync button if it exists on this page (integrations page)
+  const syncBtn = document.getElementById("strava-sync-btn");
+  if (syncBtn) syncBtn.disabled = true;
   try {
     const status = await api.get("/integrations/strava/status");
     if (!status.connected) return;
@@ -64,6 +70,9 @@ async function _silentStravaSync() {
     }
   } catch (_) {
     // Silent — never surface Strava sync errors on login
+  } finally {
+    window._stravaIsSyncing = false;
+    if (syncBtn) syncBtn.disabled = false;
   }
 }
 

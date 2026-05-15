@@ -25,10 +25,12 @@ STRAVA_WEBHOOK_VERIFY_TOKEN = os.getenv("STRAVA_WEBHOOK_VERIFY_TOKEN", "takbo_st
 # Sport types imported as running activities (Strava sport_type field)
 _RUN_SPORT_TYPES = {"Run", "TrailRun", "VirtualRun"}
 
-# Max pages per sync call (50 activities/page → up to 500 per sync)
-_MAX_PAGES = 10
-_PER_PAGE  = 50
-_HTTP_TIMEOUT = 15  # seconds
+# Max pages per incremental sync (50 activities/page → up to 500 per sync)
+_MAX_PAGES         = 10
+# Higher limit for initial full-history import (no after_ts set)
+_MAX_PAGES_INITIAL = 50
+_PER_PAGE          = 50
+_HTTP_TIMEOUT      = 15  # seconds
 
 
 # ── Strava OAuth ───────────────────────────────────────────────────────────────
@@ -218,20 +220,25 @@ def _activity_to_run_fields(activity: dict, user_id: str, max_hr: int | None) ->
     }
 
 
-def _fetch_strava_pages(access_token: str, after_ts: int | None) -> list[dict]:
+def _fetch_strava_pages(
+    access_token: str,
+    after_ts: int | None,
+    max_pages: int = _MAX_PAGES,
+) -> tuple[list[dict], bool]:
     """
-    Fetch all Strava running activities via pagination.
-    Stops after _MAX_PAGES or when a page returns fewer than _PER_PAGE results.
+    Fetch Strava running activities via pagination.
+    Returns (activities, cap_hit) where cap_hit=True means there may be more pages.
     Raises HTTPException on rate-limit (429) or other Strava errors.
     """
     all_activities = []
+    cap_hit = False
     params = {"per_page": _PER_PAGE}
     if after_ts:
         # 24-hour safety buffer so near-boundary runs aren't missed
         params["after"] = max(0, after_ts - 86400)
 
     with httpx.Client(timeout=_HTTP_TIMEOUT) as client:
-        for page in range(1, _MAX_PAGES + 1):
+        for page in range(1, max_pages + 1):
             params["page"] = page
             resp = client.get(
                 "https://www.strava.com/api/v3/athlete/activities",
@@ -263,8 +270,11 @@ def _fetch_strava_pages(access_token: str, after_ts: int | None) -> list[dict]:
 
             if len(page_activities) < _PER_PAGE:
                 break  # last page
+        else:
+            # Loop completed without a break — hit the page cap
+            cap_hit = True
 
-    return all_activities
+    return all_activities, cap_hit
 
 
 # ── Strava sync & status ───────────────────────────────────────────────────────
@@ -314,8 +324,9 @@ def strava_sync(
         except (TypeError, ValueError):
             after_ts = None
 
-    # Fetch activities (paginated, rate-limit-aware)
-    all_activities = _fetch_strava_pages(access_token, after_ts)
+    # Initial sync (no prior timestamp) gets a higher page cap to import full history
+    pages_limit = _MAX_PAGES if after_ts else _MAX_PAGES_INITIAL
+    all_activities, sync_incomplete = _fetch_strava_pages(access_token, after_ts, pages_limit)
 
     max_hr = current_user.get("max_hr")
     run_activities = [
@@ -406,6 +417,7 @@ def strava_sync(
         "skipped":          skipped,
         "total_fetched":    len(run_activities),
         "new_achievements": new_achievements,
+        "sync_incomplete":  sync_incomplete,
     }
 
 

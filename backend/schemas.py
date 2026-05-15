@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
 from typing import Optional, List, Literal
 from datetime import datetime
 
@@ -33,6 +33,14 @@ class UserResponse(BaseModel):
     created_at: datetime
     onboarding_complete: bool = False
     email_verified: bool = False
+    has_google_auth: bool = False
+
+    @model_validator(mode="before")
+    @classmethod
+    def _derive_has_google_auth(cls, values):
+        if isinstance(values, dict) and "has_google_auth" not in values:
+            values = {**values, "has_google_auth": bool(values.get("google_id"))}
+        return values
 
 
 class VerificationSentResponse(BaseModel):
