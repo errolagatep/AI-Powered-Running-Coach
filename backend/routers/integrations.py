@@ -269,12 +269,12 @@ def strava_status(
     current_user: dict = Depends(get_current_user),
     supabase: Client = Depends(get_supabase),
 ):
-    result = supabase.table("strava_tokens").select("athlete_id,updated_at,last_synced_at").eq("user_id", current_user["id"]).execute()
+    result = supabase.table("strava_tokens").select("*").eq("user_id", current_user["id"]).execute()
     connected = bool(result.data)
     return {
         "connected":      connected,
-        "athlete_id":     result.data[0]["athlete_id"]      if connected else None,
-        "last_synced_at": result.data[0].get("last_synced_at") if connected else None,
+        "athlete_id":     result.data[0].get("athlete_id")      if connected else None,
+        "last_synced_at": result.data[0].get("last_synced_at")   if connected else None,
     }
 
 
@@ -368,12 +368,16 @@ def strava_sync(
         supabase.table("run_logs").insert(fields).execute()
         imported += 1
 
-    # Stamp last_synced_at so next call can do incremental sync
+    # Stamp last_synced_at so next call can do incremental sync.
+    # Non-fatal: if the column doesn't exist yet (migration pending), log and continue.
     now_iso = datetime.now(tz=timezone.utc).isoformat()
-    supabase.table("strava_tokens").update({
-        "last_synced_at": now_iso,
-        "updated_at":     now_iso,
-    }).eq("user_id", current_user["id"]).execute()
+    try:
+        supabase.table("strava_tokens").update({
+            "last_synced_at": now_iso,
+            "updated_at":     now_iso,
+        }).eq("user_id", current_user["id"]).execute()
+    except Exception as e:
+        logger.warning("Could not stamp last_synced_at (run migration?): %s", e)
 
     # Recalculate gamification — failures are logged but don't block the response
     joined_date = str(current_user.get("created_at", ""))[:10] or None

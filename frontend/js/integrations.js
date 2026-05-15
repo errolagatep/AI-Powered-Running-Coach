@@ -21,7 +21,9 @@ async function initStravaStatus() {
     const data = await api.get("/integrations/strava/status");
     setStravaConnected(data.connected);
   } catch (e) {
-    // Integrations not available or not configured — hide section gracefully
+    // Show a non-blocking warning so the user knows the section is temporarily unavailable
+    const msg = document.getElementById("strava-status-msg");
+    if (msg) msg.textContent = "Strava status unavailable. Please try refreshing the page.";
   }
 }
 
