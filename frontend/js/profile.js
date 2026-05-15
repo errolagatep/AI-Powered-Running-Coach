@@ -206,7 +206,9 @@ async function loadHealthInfo() {
     const data = await api.get("/profile/health");
     document.getElementById("p-injuries").value    = data.injury_history || "";
     document.getElementById("p-medications").value = data.medications    || "";
-  } catch (_) {}
+  } catch (err) {
+    showAlert("health-alert", err.message || "Failed to load health info.");
+  }
 }
 
 async function saveHealth() {
@@ -276,7 +278,9 @@ async function loadManualBests() {
         }
       }
     }
-  } catch (_) {}
+  } catch (err) {
+    showAlert("pb-alert", err.message || "Failed to load personal bests.");
+  }
 }
 
 async function saveManualBests() {
@@ -321,7 +325,10 @@ async function loadPredictions() {
     if (data.predictions) {
       renderPredictions(data.predictions, data.generated_at);
     }
-  } catch (_) {}
+  } catch (err) {
+    // Predictions are non-essential — log without alarming the user
+    console.error("Failed to load predictions:", err);
+  }
 }
 
 async function generatePredictions() {

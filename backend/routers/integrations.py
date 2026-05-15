@@ -39,7 +39,12 @@ def strava_auth_url(current_user: dict = Depends(get_current_user)):
     if not STRAVA_CLIENT_ID:
         raise HTTPException(status_code=501, detail="Strava integration is not configured")
 
-    state = create_access_token({"sub": current_user["id"], "purpose": "strava_connect"})
+    # Short-lived state token: OAuth flow should complete within minutes, not days
+    from datetime import timedelta as _td
+    state = create_access_token(
+        {"sub": current_user["id"], "purpose": "strava_connect"},
+        expires_delta=_td(minutes=15),
+    )
     params = urlencode({
         "client_id":       STRAVA_CLIENT_ID,
         "redirect_uri":    STRAVA_REDIRECT_URI,
@@ -331,10 +336,11 @@ def strava_sync(
         if fields is None:
             continue  # invalid/incomplete activity
 
-        # Check for existing record
+        # Check for existing record — use select("*") so missing migration columns
+        # don't cause the deduplication query to fail
         dup = (
             supabase.table("run_logs")
-            .select("id,distance_km,duration_min,heart_rate_avg,elevation_gain")
+            .select("*")
             .eq("user_id", current_user["id"])
             .eq("strava_activity_id", strava_id)
             .execute()

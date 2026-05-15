@@ -250,7 +250,7 @@ function cancelGoalEdit() {
 async function loadPlan() {
   try {
     const [data, program] = await Promise.all([
-      api.get("/plans/current"),
+      api.get("/plans/current").catch(() => null),
       api.get("/plans/program/active").catch(() => null),
     ]);
     currentProgram = program;
@@ -279,6 +279,12 @@ async function loadPlan() {
     updateHeaderButtons();
   } catch (err) {
     console.error("Failed to load plan:", err);
+    const alertEl = document.getElementById("alert");
+    if (alertEl) {
+      alertEl.textContent = err.message || "Failed to load training plan. Please refresh the page.";
+      alertEl.classList.remove("hidden");
+    }
+    document.getElementById("plan-loading").classList.add("hidden");
   }
 }
 

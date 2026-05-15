@@ -23,9 +23,10 @@ def verify_password(plain: str, hashed: str) -> bool:
     return pwd_context.verify(plain, hashed)
 
 
-def create_access_token(data: dict) -> str:
+def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
     payload = data.copy()
-    payload["exp"] = datetime.utcnow() + timedelta(days=ACCESS_TOKEN_EXPIRE_DAYS)
+    delta = expires_delta if expires_delta is not None else timedelta(days=ACCESS_TOKEN_EXPIRE_DAYS)
+    payload["exp"] = datetime.utcnow() + delta
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
 

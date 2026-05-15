@@ -23,22 +23,22 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   try {
     const [runs, progress, goal, gam, achievements, plan] = await Promise.all([
-      api.get("/runs/?limit=10"),
-      api.get("/progress/"),
-      api.get("/goals/"),
+      api.get("/runs/?limit=10").catch(() => null),
+      api.get("/progress/").catch(() => null),
+      api.get("/goals/").catch(() => null),
       api.get("/gamification/").catch(() => null),
       api.get("/gamification/achievements").catch(() => []),
       api.get("/plans/current").catch(() => null),
     ]);
 
-    renderStats(progress, runs);
+    if (progress && runs) renderStats(progress, runs);
     renderGoalBanner(goal, plan);
     renderProfileIncompleteBanner();
-    renderSetupChecklist(goal, plan, runs);
-    renderWeeklyRecap(runs, plan, gam);
+    renderSetupChecklist(goal, plan, runs || []);
+    renderWeeklyRecap(runs || [], plan, gam);
     renderTodayWorkout(plan);
-    renderCoachingInsights(runs);
-    renderRuns(runs);
+    renderCoachingInsights(runs || []);
+    renderRuns(runs || []);
     if (gam) renderGamification(gam);
     if (achievements) checkNewAchievements(achievements);
     lucide.createIcons();
@@ -78,7 +78,8 @@ async function loadRuns() {
     lucide.createIcons();
   } catch (err) {
     console.error(err);
-    document.getElementById("runs-loading").classList.add("hidden");
+    const el = document.getElementById("runs-loading");
+    el.textContent = "Failed to load runs. Please refresh the page.";
   }
 }
 

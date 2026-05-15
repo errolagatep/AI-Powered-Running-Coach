@@ -523,7 +523,7 @@ def log_run(
 
     recent = (
         supabase.table("run_logs")
-        .select("date,distance_km,duration_min,pace_per_km,heart_rate_avg,effort_level,notes,coach_note,ai_feedback")
+        .select("*")
         .eq("user_id", current_user["id"])
         .neq("id", run["id"])
         .order("date", desc=True)
@@ -696,7 +696,7 @@ def regenerate_feedback(
 
     recent = (
         supabase.table("run_logs")
-        .select("date,distance_km,duration_min,pace_per_km,heart_rate_avg,effort_level,notes,coach_note,ai_feedback")
+        .select("*")
         .eq("user_id", current_user["id"])
         .neq("id", run_id)
         .order("date", desc=True)

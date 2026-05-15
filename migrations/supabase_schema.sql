@@ -244,6 +244,7 @@ CREATE TABLE IF NOT EXISTS user_personal_bests (
     time_min   FLOAT       NOT NULL,
     race_date  DATE,
     created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE (user_id, race)
 );
 

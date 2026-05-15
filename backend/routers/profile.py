@@ -188,9 +188,9 @@ def update_manual_bests(
             supabase.table("user_personal_bests").delete().eq("user_id", current_user["id"]).eq("race", race).execute()
             continue
         row = {
-            "user_id": current_user["id"],
-            "race": race,
-            "time_min": float(data["time_min"]),
+            "user_id":   current_user["id"],
+            "race":      race,
+            "time_min":  float(data["time_min"]),
             "race_date": data.get("race_date") or None,
             "updated_at": datetime.now(tz=timezone.utc).isoformat(),
         }
