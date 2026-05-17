@@ -424,7 +424,7 @@
     btn.textContent = "Saving…";
     try {
       const body = { notes, effort_level: effort };
-      const updated = await api.patch(`/runs/${runId}`, body);
+      const updated = await api.put(`/runs/${runId}`, body);
       document.getElementById("edit-notes-backdrop").classList.add("hidden");
       document.body.style.overflow = "";
       _runId = null;
