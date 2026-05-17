@@ -242,32 +242,38 @@ def _compute_personal_bests(user_id: str, supabase: Client) -> dict:
             }
 
     # Merge manually entered PBs — prefer the faster time for each distance
-    manual_result = (
-        supabase.table("user_personal_bests")
-        .select("race,time_min,race_date")
-        .eq("user_id", user_id)
-        .execute()
-    )
-    for row in (manual_result.data or []):
-        race = row["race"]
-        if race not in bests or row["time_min"] < bests[race]["time_min"]:
-            bests[race] = {
-                "time_min":  round(row["time_min"], 2),
-                "race_date": str(row["race_date"])[:10] if row.get("race_date") else None,
-            }
+    try:
+        manual_result = (
+            supabase.table("user_personal_bests")
+            .select("race,time_min,race_date")
+            .eq("user_id", user_id)
+            .execute()
+        )
+        for row in (manual_result.data or []):
+            race = row["race"]
+            if race not in bests or row["time_min"] < bests[race]["time_min"]:
+                bests[race] = {
+                    "time_min":  round(row["time_min"], 2),
+                    "race_date": str(row["race_date"])[:10] if row.get("race_date") else None,
+                }
+    except Exception:
+        pass
 
     return bests
 
 
 def _fetch_athlete_summary(user_id: str, supabase: Client) -> Optional[str]:
     """Return the stored rolling athlete summary, or None if not yet generated."""
-    result = (
-        supabase.table("athlete_summaries")
-        .select("summary")
-        .eq("user_id", user_id)
-        .execute()
-    )
-    return result.data[0]["summary"] if result.data else None
+    try:
+        result = (
+            supabase.table("athlete_summaries")
+            .select("summary")
+            .eq("user_id", user_id)
+            .execute()
+        )
+        return result.data[0]["summary"] if result.data else None
+    except Exception:
+        return None
 
 
 def _maybe_refresh_athlete_summary(user_id: str) -> None:
@@ -691,7 +697,10 @@ def regenerate_feedback(
     run = run_result.data[0]
 
     if body.coach_note and body.coach_note.strip():
-        supabase.table("run_logs").update({"coach_note": body.coach_note.strip()}).eq("id", run_id).execute()
+        try:
+            supabase.table("run_logs").update({"coach_note": body.coach_note.strip()}).eq("id", run_id).execute()
+        except Exception:
+            pass
         run = {**run, "coach_note": body.coach_note.strip()}
 
     recent = (
