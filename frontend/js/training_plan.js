@@ -518,7 +518,7 @@ function openRunDetail(run) {
   const durM = Math.round(duration % 60);
   const durStr = durH > 0 ? `${durH}h ${durM}m` : `${durM} min`;
 
-  const dateStr = new Date(run.date).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+  const dateStr = new Date(String(run.date).slice(0, 10) + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
 
   const hrStat = run.heart_rate_avg
     ? `<div class="run-detail-stat">

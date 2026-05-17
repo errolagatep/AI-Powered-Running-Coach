@@ -113,12 +113,12 @@ def get_current_plan(
                 response["end_date"] = str(prog_meta.data[0]["end_date"])[:10]
             return response
 
-    # No active program — fall back to most recently generated plan
+    # No active program — fall back to plan for the most recent calendar week
     result = (
         supabase.table("training_plans")
         .select("*")
         .eq("user_id", current_user["id"])
-        .order("generated_at", desc=True)
+        .order("week_start", desc=True)
         .limit(1)
         .execute()
     )
@@ -588,6 +588,7 @@ def generate_next_week(
     existing = (
         supabase.table("training_plans")
         .select("*")
+        .eq("user_id", current_user["id"])
         .eq("program_id", body.program_id)
         .eq("week_number", body.week_number)
         .execute()

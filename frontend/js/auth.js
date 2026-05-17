@@ -44,7 +44,8 @@ function formatDuration(durationMin) {
 }
 
 function formatDate(isoString) {
-  const d = new Date(isoString);
+  const datePart = String(isoString).slice(0, 10);
+  const d = new Date(datePart + "T12:00:00");
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 

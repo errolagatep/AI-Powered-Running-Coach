@@ -75,8 +75,8 @@ def strava_callback(
     try:
         payload = decode_token(state)
         user_id = payload.get("sub")
-        if not user_id:
-            raise ValueError("missing sub")
+        if not user_id or payload.get("purpose") != "strava_connect":
+            raise ValueError("invalid state token")
     except Exception:
         return RedirectResponse(url="/dashboard.html?strava=error")
 

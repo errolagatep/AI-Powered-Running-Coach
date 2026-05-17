@@ -368,7 +368,7 @@ def _get_planned_workout_for_date(user_id: str, run_date, supabase: Client):
 
 def _process_gamification(user_id: str, run: dict, supabase: Client) -> list:
     """Update streak, XP, level; check and unlock achievements. Returns list of new achievements."""
-    today = date.today()
+    run_date = date.fromisoformat(str(run.get("date", ""))[:10])
 
     # ── Fetch current state ───────────────────────────────────
     g_result = supabase.table("user_gamification").select("*").eq("user_id", user_id).execute()
@@ -381,7 +381,7 @@ def _process_gamification(user_id: str, run: dict, supabase: Client) -> list:
     if last_run:
         if isinstance(last_run, str):
             last_run = date.fromisoformat(last_run[:10])
-        delta = (today - last_run).days
+        delta = (run_date - last_run).days
         if delta == 0:
             new_streak = g["current_streak"]
         elif delta == 1:
@@ -423,7 +423,7 @@ def _process_gamification(user_id: str, run: dict, supabase: Client) -> list:
         "level": new_level,
         "current_streak": new_streak,
         "longest_streak": longest,
-        "last_run_date": today.isoformat(),
+        "last_run_date": run_date.isoformat(),
     }
     if g_result.data:
         supabase.table("user_gamification").update(gam_payload).eq("user_id", user_id).execute()
@@ -456,11 +456,13 @@ def _process_gamification(user_id: str, run: dict, supabase: Client) -> list:
     week_start = (today_dt - timedelta(days=today_dt.weekday())).replace(
         hour=0, minute=0, second=0, microsecond=0
     )
+    week_end_str = (date.today() + timedelta(days=1)).isoformat()
     weekly_result = (
         supabase.table("run_logs")
         .select("distance_km,date")
         .eq("user_id", user_id)
         .gte("date", max(joined_date, week_start.isoformat()[:10]))
+        .lt("date", week_end_str)
         .execute()
     )
     weekly_km = sum(r["distance_km"] for r in weekly_result.data)
@@ -771,11 +773,12 @@ def update_run(
     if "date" in patch:
         patch["date"] = patch["date"].strftime("%Y-%m-%d")
 
-    # Recalculate pace if distance or duration changed
+    # Recalculate pace only when distance or duration actually changed
     current = existing.data[0]
-    new_distance = patch.get("distance_km", current["distance_km"])
-    new_duration = patch.get("duration_min", current["duration_min"])
-    patch["pace_per_km"] = new_duration / new_distance
+    if "distance_km" in patch or "duration_min" in patch:
+        new_distance = patch.get("distance_km", current["distance_km"])
+        new_duration = patch.get("duration_min", current["duration_min"])
+        patch["pace_per_km"] = new_duration / new_distance
 
     if "effort_level" in patch and not (1 <= patch["effort_level"] <= 10):
         raise HTTPException(status_code=400, detail="Effort level must be between 1 and 10")

@@ -175,9 +175,13 @@ function renderWeeklyRecap(runs, planData, gam) {
   sunday.setDate(monday.getDate() + 6);
   sunday.setHours(23, 59, 59, 999);
 
+  const pad = n => String(n).padStart(2, "0");
+  const toKey = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  const mondayKey = toKey(monday);
+  const sundayKey = toKey(sunday);
   const weekRuns = runs.filter(r => {
-    const d = new Date(r.date);
-    return d >= monday && d <= sunday;
+    const key = String(r.date).slice(0, 10);
+    return key >= mondayKey && key <= sundayKey;
   });
 
   const weekKm    = weekRuns.reduce((s, r) => s + r.distance_km, 0);
@@ -197,8 +201,8 @@ function renderWeeklyRecap(runs, planData, gam) {
     });
   }
 
-  // Days remaining in the week (including today)
-  const daysLeft = 7 - (dayOfWeek === 0 ? 6 : dayOfWeek - 1);
+  // Days remaining in the week including today (Mon=7 … Sun=1)
+  const daysLeft = dayOfWeek === 0 ? 1 : 8 - dayOfWeek;
 
   // Progress ratio (capped at 1)
   const progress = plannedDays > 0 ? Math.min(weekCount / plannedDays, 1) : null;
@@ -276,7 +280,9 @@ function renderStats(progress, runs) {
   const dayOfWeek = today.getDay(); // 0=Sun
   const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
   const weekStart = new Date(today.getFullYear(), today.getMonth(), today.getDate() + mondayOffset);
-  const weekRuns = runs.filter(r => new Date(r.date) >= weekStart).length;
+  const pad2 = n => String(n).padStart(2, "0");
+  const weekStartKey = `${weekStart.getFullYear()}-${pad2(weekStart.getMonth()+1)}-${pad2(weekStart.getDate())}`;
+  const weekRuns = runs.filter(r => String(r.date).slice(0, 10) >= weekStartKey).length;
   document.getElementById("stat-week-runs").textContent = weekRuns;
 
   // Avg pace last 7 runs
@@ -609,7 +615,7 @@ function runCard(run) {
 
   const elevStr = run.elevation_gain != null ? `${run.elevation_gain} m` : "—";
   const sportLabel = run.sport_type && run.sport_type !== "Run"
-    ? `<span style="font-size:11px;color:var(--text-sec);margin-left:6px;">${run.sport_type}</span>`
+    ? `<span style="font-size:11px;color:var(--text-sec);margin-left:6px;">${escapeHtml(run.sport_type)}</span>`
     : "";
 
   return `
