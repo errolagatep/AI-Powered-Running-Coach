@@ -362,32 +362,48 @@ def strava_sync(
     updated  = 0
     skipped  = 0
 
-    first_db_error: str | None = None
-
-    for activity in run_activities:
-        strava_id = activity.get("id")
-        if not strava_id:
-            continue
-
+    if run_activities:
+        # ── Batch dedup: one query for all Strava IDs instead of one per activity ──
+        strava_ids = [a["id"] for a in run_activities if a.get("id")]
         try:
+            dup_result = (
+                supabase.table("run_logs")
+                .select("id,strava_activity_id,distance_km,duration_min,heart_rate_avg,elevation_gain")
+                .eq("user_id", current_user["id"])
+                .in_("strava_activity_id", strava_ids)
+                .execute()
+            )
+            existing_map = {
+                str(row["strava_activity_id"]): row
+                for row in (dup_result.data or [])
+                if row.get("strava_activity_id") is not None
+            }
+        except Exception as e:
+            logger.error("Strava dedup query failed: %s", e, exc_info=True)
+            raise HTTPException(
+                status_code=500,
+                detail=(
+                    "Sync failed: database query error. "
+                    "If this is a new install, run migrations/supabase_schema.sql in your Supabase SQL Editor. "
+                    f"Error: {str(e)[:200]}"
+                ),
+            )
+
+        # ── Classify each activity as new / changed / unchanged ──────────────────
+        to_insert: list[dict] = []
+        to_update: list[tuple[str, dict]] = []  # (run_id, update_fields)
+
+        for activity in run_activities:
+            strava_id = activity.get("id")
+            if not strava_id:
+                continue
             fields = _activity_to_run_fields(activity, current_user["id"], max_hr)
             if fields is None:
                 skipped += 1
                 continue
 
-            # Check for existing record — use select("*") so missing migration columns
-            # don't cause the deduplication query to fail
-            dup = (
-                supabase.table("run_logs")
-                .select("*")
-                .eq("user_id", current_user["id"])
-                .eq("strava_activity_id", strava_id)
-                .execute()
-            )
-
-            if dup.data:
-                existing = dup.data[0]
-                # Update if Strava data changed (e.g. athlete edited the activity)
+            existing = existing_map.get(str(strava_id))
+            if existing:
                 changed = (
                     abs(float(existing.get("distance_km") or 0) - fields["distance_km"]) > 0.01
                     or abs(float(existing.get("duration_min") or 0) - fields["duration_min"]) > 0.1
@@ -395,7 +411,7 @@ def strava_sync(
                     or existing.get("elevation_gain") != fields["elevation_gain"]
                 )
                 if changed:
-                    supabase.table("run_logs").update({
+                    to_update.append((existing["id"], {
                         "distance_km":    fields["distance_km"],
                         "duration_min":   fields["duration_min"],
                         "pace_per_km":    fields["pace_per_km"],
@@ -403,29 +419,36 @@ def strava_sync(
                         "elevation_gain": fields["elevation_gain"],
                         "route_polyline": fields["route_polyline"],
                         "sport_type":     fields["sport_type"],
-                    }).eq("id", existing["id"]).execute()
-                    updated += 1
+                    }))
                 else:
                     skipped += 1
-                continue
+            else:
+                to_insert.append(fields)
 
-            # New activity — insert
-            supabase.table("run_logs").insert(fields).execute()
-            imported += 1
+        # ── Batch insert new activities ───────────────────────────────────────────
+        if to_insert:
+            try:
+                supabase.table("run_logs").insert(to_insert).execute()
+                imported = len(to_insert)
+            except Exception as e:
+                logger.error("Batch insert failed (%d activities): %s", len(to_insert), e, exc_info=True)
+                # Fallback: insert one-by-one so partial success is possible
+                for fields in to_insert:
+                    try:
+                        supabase.table("run_logs").insert(fields).execute()
+                        imported += 1
+                    except Exception as e2:
+                        logger.error("Single insert failed for activity %s: %s", fields.get("strava_activity_id"), e2)
+                        skipped += 1
 
-        except Exception as e:
-            logger.error("Failed to sync Strava activity %s: %s", strava_id, e, exc_info=True)
-            if first_db_error is None:
-                first_db_error = str(e)
-            skipped += 1
-            continue
-
-    # If every single activity failed (e.g. migration not run), surface a clear error
-    if first_db_error is not None and imported == 0 and updated == 0 and run_activities:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Sync failed: could not write any runs to the database. Check server logs. First error: {first_db_error[:200]}",
-        )
+        # ── Apply individual updates for changed activities ───────────────────────
+        for run_id, update_fields in to_update:
+            try:
+                supabase.table("run_logs").update(update_fields).eq("id", run_id).execute()
+                updated += 1
+            except Exception as e:
+                logger.error("Update failed for run %s: %s", run_id, e)
+                skipped += 1
 
     # Stamp last_synced_at so next call can do incremental sync.
     # Non-fatal: if the column doesn't exist yet (migration pending), log and continue.
