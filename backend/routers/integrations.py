@@ -25,10 +25,12 @@ STRAVA_WEBHOOK_VERIFY_TOKEN = os.getenv("STRAVA_WEBHOOK_VERIFY_TOKEN", "takbo_st
 # Sport types imported as running activities (Strava sport_type field)
 _RUN_SPORT_TYPES = {"Run", "TrailRun", "VirtualRun"}
 
-# Max pages per incremental sync (50 activities/page → up to 500 per sync)
-_MAX_PAGES         = 10
-# Higher limit for initial full-history import (no after_ts set)
-_MAX_PAGES_INITIAL = 50
+# Max pages per incremental sync — after_ts already filters to recent activities;
+# 3 pages (150 runs) is a large safety net for users who skipped many sync cycles.
+_MAX_PAGES         = 3
+# First-time connect: import only the 100 most recent runs (2 pages).
+# Subsequent syncs use after_ts so older history is never needed again.
+_MAX_PAGES_INITIAL = 2
 _PER_PAGE          = 50
 _HTTP_TIMEOUT      = 15  # seconds
 

@@ -75,7 +75,7 @@ async function stravaSync() {
     if (data.updated > 0) parts.push(`${data.updated} updated`);
     parts.push(`${data.skipped} already up to date`);
     let msg = `Sync complete: ${parts.join(", ")}.`;
-    if (data.sync_incomplete) msg += " Your full history exceeds 2500 activities — sync again to import older runs.";
+    if (data.sync_incomplete) msg += " Only your most recent runs were imported — older history was not fetched.";
     showStravaMessage(msg, "success");
     if (typeof loadRuns === "function") loadRuns();
     if (data.new_achievements?.length && typeof showAchievementToast === "function") {
