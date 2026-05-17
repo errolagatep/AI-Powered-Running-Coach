@@ -123,18 +123,26 @@ def _refresh_strava_token(token_row: dict, supabase: Client) -> str:
     if datetime.now(tz=timezone.utc) < expires_at:
         return token_row["access_token"]
 
-    with httpx.Client(timeout=_HTTP_TIMEOUT) as client:
-        res = client.post("https://www.strava.com/oauth/token", data={
-            "client_id":     STRAVA_CLIENT_ID,
-            "client_secret": STRAVA_CLIENT_SECRET,
-            "refresh_token": token_row["refresh_token"],
-            "grant_type":    "refresh_token",
-        })
-    data = res.json()
+    try:
+        with httpx.Client(timeout=_HTTP_TIMEOUT) as client:
+            res = client.post("https://www.strava.com/oauth/token", data={
+                "client_id":     STRAVA_CLIENT_ID,
+                "client_secret": STRAVA_CLIENT_SECRET,
+                "refresh_token": token_row["refresh_token"],
+                "grant_type":    "refresh_token",
+            })
+        data = res.json()
+    except Exception as e:
+        logger.error("Strava token refresh request failed: %s", e)
+        raise HTTPException(status_code=502, detail="Could not reach Strava to refresh your token. Please try again.")
+
     if "access_token" not in data:
         raise HTTPException(status_code=401, detail="Failed to refresh Strava token. Please reconnect Strava.")
 
-    new_expires_at = datetime.fromtimestamp(data["expires_at"], tz=timezone.utc).isoformat()
+    try:
+        new_expires_at = datetime.fromtimestamp(data["expires_at"], tz=timezone.utc).isoformat()
+    except (TypeError, ValueError, OSError):
+        new_expires_at = datetime.now(tz=timezone.utc).isoformat()
     supabase.table("strava_tokens").update({
         "access_token":  data["access_token"],
         "refresh_token": data["refresh_token"],
@@ -185,7 +193,10 @@ def _activity_to_run_fields(activity: dict, user_id: str, max_hr: int | None) ->
         return None
 
     heart_rate_avg = activity.get("average_heartrate")
-    heart_rate_avg = int(heart_rate_avg) if heart_rate_avg else None
+    try:
+        heart_rate_avg = int(heart_rate_avg) if heart_rate_avg else None
+    except (TypeError, ValueError):
+        heart_rate_avg = None
 
     pace_per_km  = duration_min / distance_km
     effort_level = _estimate_effort(heart_rate_avg, max_hr)
@@ -237,42 +248,53 @@ def _fetch_strava_pages(
         # 24-hour safety buffer so near-boundary runs aren't missed
         params["after"] = max(0, after_ts - 86400)
 
-    with httpx.Client(timeout=_HTTP_TIMEOUT) as client:
-        for page in range(1, max_pages + 1):
-            params["page"] = page
-            resp = client.get(
-                "https://www.strava.com/api/v3/athlete/activities",
-                headers={"Authorization": f"Bearer {access_token}"},
-                params=params,
-            )
-
-            if resp.status_code == 429:
-                raise HTTPException(
-                    status_code=429,
-                    detail="Strava rate limit reached. Please wait a few minutes and try again.",
-                )
-            if resp.status_code == 401:
-                raise HTTPException(
-                    status_code=401,
-                    detail="Strava token expired. Please reconnect Strava.",
-                )
-            if resp.status_code != 200:
-                raise HTTPException(
-                    status_code=502,
-                    detail=f"Strava returned an error (HTTP {resp.status_code}). Please try again later.",
+    try:
+        with httpx.Client(timeout=_HTTP_TIMEOUT) as client:
+            for page in range(1, max_pages + 1):
+                params["page"] = page
+                resp = client.get(
+                    "https://www.strava.com/api/v3/athlete/activities",
+                    headers={"Authorization": f"Bearer {access_token}"},
+                    params=params,
                 )
 
-            page_activities = resp.json()
-            if not page_activities:
-                break  # no more pages
+                if resp.status_code == 429:
+                    raise HTTPException(
+                        status_code=429,
+                        detail="Strava rate limit reached. Please wait a few minutes and try again.",
+                    )
+                if resp.status_code == 401:
+                    raise HTTPException(
+                        status_code=401,
+                        detail="Strava token expired. Please reconnect Strava.",
+                    )
+                if resp.status_code != 200:
+                    raise HTTPException(
+                        status_code=502,
+                        detail=f"Strava returned an error (HTTP {resp.status_code}). Please try again later.",
+                    )
 
-            all_activities.extend(page_activities)
+                try:
+                    page_activities = resp.json()
+                except Exception:
+                    logger.warning("Non-JSON response from Strava on page %d (status %d)", page, resp.status_code)
+                    break
 
-            if len(page_activities) < _PER_PAGE:
-                break  # last page
-        else:
-            # Loop completed without a break — hit the page cap
-            cap_hit = True
+                if not isinstance(page_activities, list) or not page_activities:
+                    break  # no more pages or unexpected response shape
+
+                all_activities.extend(page_activities)
+
+                if len(page_activities) < _PER_PAGE:
+                    break  # last page
+            else:
+                # Loop completed without a break — hit the page cap
+                cap_hit = True
+    except HTTPException:
+        raise  # let 4xx/5xx pass through
+    except Exception as e:
+        logger.error("Network error fetching Strava activities: %s", e)
+        raise HTTPException(status_code=502, detail="Could not reach Strava. Please check your connection and try again.")
 
     return all_activities, cap_hit
 
@@ -338,52 +360,70 @@ def strava_sync(
     updated  = 0
     skipped  = 0
 
+    first_db_error: str | None = None
+
     for activity in run_activities:
         strava_id = activity.get("id")
         if not strava_id:
             continue
 
-        fields = _activity_to_run_fields(activity, current_user["id"], max_hr)
-        if fields is None:
-            continue  # invalid/incomplete activity
-
-        # Check for existing record — use select("*") so missing migration columns
-        # don't cause the deduplication query to fail
-        dup = (
-            supabase.table("run_logs")
-            .select("*")
-            .eq("user_id", current_user["id"])
-            .eq("strava_activity_id", strava_id)
-            .execute()
-        )
-
-        if dup.data:
-            existing = dup.data[0]
-            # Update if Strava data changed (e.g. athlete edited the activity)
-            changed = (
-                abs(float(existing.get("distance_km") or 0) - fields["distance_km"]) > 0.01
-                or abs(float(existing.get("duration_min") or 0) - fields["duration_min"]) > 0.1
-                or existing.get("heart_rate_avg") != fields["heart_rate_avg"]
-                or existing.get("elevation_gain") != fields["elevation_gain"]
-            )
-            if changed:
-                supabase.table("run_logs").update({
-                    "distance_km":    fields["distance_km"],
-                    "duration_min":   fields["duration_min"],
-                    "pace_per_km":    fields["pace_per_km"],
-                    "heart_rate_avg": fields["heart_rate_avg"],
-                    "elevation_gain": fields["elevation_gain"],
-                    "route_polyline": fields["route_polyline"],
-                    "sport_type":     fields["sport_type"],
-                }).eq("id", existing["id"]).execute()
-                updated += 1
-            else:
+        try:
+            fields = _activity_to_run_fields(activity, current_user["id"], max_hr)
+            if fields is None:
                 skipped += 1
+                continue
+
+            # Check for existing record — use select("*") so missing migration columns
+            # don't cause the deduplication query to fail
+            dup = (
+                supabase.table("run_logs")
+                .select("*")
+                .eq("user_id", current_user["id"])
+                .eq("strava_activity_id", strava_id)
+                .execute()
+            )
+
+            if dup.data:
+                existing = dup.data[0]
+                # Update if Strava data changed (e.g. athlete edited the activity)
+                changed = (
+                    abs(float(existing.get("distance_km") or 0) - fields["distance_km"]) > 0.01
+                    or abs(float(existing.get("duration_min") or 0) - fields["duration_min"]) > 0.1
+                    or existing.get("heart_rate_avg") != fields["heart_rate_avg"]
+                    or existing.get("elevation_gain") != fields["elevation_gain"]
+                )
+                if changed:
+                    supabase.table("run_logs").update({
+                        "distance_km":    fields["distance_km"],
+                        "duration_min":   fields["duration_min"],
+                        "pace_per_km":    fields["pace_per_km"],
+                        "heart_rate_avg": fields["heart_rate_avg"],
+                        "elevation_gain": fields["elevation_gain"],
+                        "route_polyline": fields["route_polyline"],
+                        "sport_type":     fields["sport_type"],
+                    }).eq("id", existing["id"]).execute()
+                    updated += 1
+                else:
+                    skipped += 1
+                continue
+
+            # New activity — insert
+            supabase.table("run_logs").insert(fields).execute()
+            imported += 1
+
+        except Exception as e:
+            logger.error("Failed to sync Strava activity %s: %s", strava_id, e, exc_info=True)
+            if first_db_error is None:
+                first_db_error = str(e)
+            skipped += 1
             continue
 
-        # New activity — insert
-        supabase.table("run_logs").insert(fields).execute()
-        imported += 1
+    # If every single activity failed (e.g. migration not run), surface a clear error
+    if first_db_error is not None and imported == 0 and updated == 0 and run_activities:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Sync failed: could not write any runs to the database. Check server logs. First error: {first_db_error[:200]}",
+        )
 
     # Stamp last_synced_at so next call can do incremental sync.
     # Non-fatal: if the column doesn't exist yet (migration pending), log and continue.
