@@ -336,15 +336,18 @@ def _maybe_refresh_athlete_summary(user_id: str) -> None:
         logger.warning("Athlete summary refresh failed for user %s: %s", user_id, e)
 
 
-def _get_planned_workout_for_date(user_id: str, run_date: datetime, supabase: Client):
+def _get_planned_workout_for_date(user_id: str, run_date, supabase: Client):
     """Look up the training plan and return the scheduled workout for the run's day of week."""
     DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
     day_name = DAY_NAMES[run_date.weekday()]
+
+    run_week_start = (run_date - timedelta(days=run_date.weekday())).strftime("%Y-%m-%d")
 
     result = (
         supabase.table("training_plans")
         .select("plan_json,week_start")
         .eq("user_id", user_id)
+        .eq("week_start", run_week_start)
         .order("generated_at", desc=True)
         .limit(1)
         .execute()
